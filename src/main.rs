@@ -1,8 +1,9 @@
-use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
 mod parser;
+
+use parser::Indexer;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
@@ -14,9 +15,12 @@ struct Opt {
 fn main() {
     let opt = Opt::from_args();
     let files = parser::get_files_in_dir(opt.directory);
-    let mut keywords: HashMap<String, HashSet<PathBuf>> = HashMap::new();
+    let mut keywords = Indexer::new();
 
     for file in files {
         parser::get_keywords_from_file(&file, &mut keywords);
     }
+
+    println!("Keywords detected:");
+    println!("{keywords}");
 }
