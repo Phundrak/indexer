@@ -1,0 +1,57 @@
+Un *atome* (grec ancien ἄτομος [átomos], « insécable ») est la plus
+petite partie d'un corps simple pouvant se combiner chimiquement avec
+un autre. Les atomes sont les constituants élémentaires de toutes les
+substances solides, liquides ou gazeuses. Les propriétés physiques et
+chimiques de ces substances sont déterminées par les atomes qui les
+constituent ainsi que par l'arrangement tridimensionnel de ces atomes.
+
+Contrairement à ce que leur étymologie suggère, les atomes ne sont pas
+indivisibles, mais sont constitués de particules subatomiques. Ils
+comprennent un noyau, qui concentre plus de 99,9 % de leur masse,
+autour duquel se distribuent des électrons, qui forment un nuage
+10 000 à 100 000 fois plus étendu que le noyau lui-même, de sorte que
+le volume d'un atome, grossièrement sphérique, est presque entièrement
+vide. Le noyau est formé de protons, porteurs d'une charge électrique
+positive, et de neutrons, électriquement neutres ; l'hydrogène fait
+exception, car le noyau de son isotope 1H ne contient aucun neutron.
+Les protons et neutrons, également appelés nucléons, sont maintenus
+ensemble dans le noyau par la liaison nucléaire, qui est une
+manifestation de l'interaction forte. Les électrons occupent des
+orbitales atomiques en interaction avec le noyau /via/ la force
+électromagnétique. Le nuage électronique est stratifié en niveaux
+d'énergie quantifiés autour du noyau, niveaux qui définissent des
+couches et des sous-couches électroniques ; les nucléons se
+distribuent également selon des couches nucléaires, bien qu'un modèle
+approché assez commode popularise la structure nucléaire d'après le
+modèle de la goutte liquide.
+
+Plusieurs atomes peuvent établir des liaisons chimiques entre eux
+grâce à leurs électrons. D'une manière générale, les propriétés
+chimiques des atomes sont déterminées par leur configuration
+électronique, laquelle découle du nombre de protons de leur noyau. Ce
+nombre, appelé numéro atomique, définit un élément chimique.
+118 éléments chimiques sont reconnus par l'Union internationale de
+chimie pure et appliquée (IUPAC) depuis le 18 novembre 2016. Les
+atomes d'éléments différents ont des tailles différentes, ainsi
+généralement que des masses différentes, bien que les atomes d'un
+élément chimique donné puissent avoir des masses différentes selon les
+isotopes considérés. Les atomes les plus lourds, ou dont le noyau
+présente un déséquilibre trop important entre les deux types de
+nucléons, tendent à devenir plus instables, et sont alors
+radioactifs ; le plomb 208 est l'isotope stable le plus lourd.
+
+La théorie atomiste, qui soutient l'idée d'une matière composée de
+« grains » indivisibles (contre l'idée d'une matière indéfiniment
+sécable), est connue depuis l'Antiquité, et a été notamment défendue
+par Leucippe et son disciple Démocrite, philosophes de la Grèce
+antique, ainsi qu'en Inde, plus antérieurement, par l'une des six
+écoles de philosophie hindoue, le vaisheshika, fondé par Kanada. Elle
+fut disputée jusqu'à la fin du XIX^{e} siècle et n'a plus été remise
+en cause depuis lors. L'observation directe d'atomes n'est devenue
+possible qu'au milieu du XX^{e} siècle avec la microscopie
+électronique en transmission et l'invention du microscope à effet
+tunnel. C'est ainsi sur les propriétés des atomes que reposent toutes
+les sciences des matériaux modernes, tandis que l'élucidation de la
+nature et de la structure des atomes a contribué de manière décisive
+au développement de la physique moderne, et notamment de la mécanique
+quantique.
