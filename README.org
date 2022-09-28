@@ -1,0 +1,8 @@
+#+title: Indexer
+
+This project is a simple indexer for French text in plaintext for now,
+richer text later. Hopefully this will eventually support reading
+formats such as ~.docx~, ~.odt~, ~.pdf~, and so on.
+
+This project is a university assignment for my /Computer and Web
+Techniques/ (/Techniques Informatiques et Web/).
