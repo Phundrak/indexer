@@ -10,15 +10,19 @@ use parser::Indexer;
 struct Opt {
     #[structopt(name = "DIRECTORY", parse(from_os_str))]
     directory: PathBuf,
+
+    #[structopt(short = "s", long, parse(from_os_str))]
+    stop_words: Option<PathBuf>,
 }
 
 fn main() {
     let opt = Opt::from_args();
     let files = parser::get_files_in_dir(opt.directory);
+    let stop_words = parser::get_stopwords(opt.stop_words);
     let mut keywords = Indexer::new();
 
     for file in files {
-        parser::get_keywords_from_file(&file, &mut keywords);
+        parser::get_keywords_from_file(&file, &mut keywords, &stop_words);
     }
 
     println!("Keywords detected:");

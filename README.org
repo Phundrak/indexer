@@ -6,3 +6,7 @@ formats such as ~.docx~, ~.odt~, ~.pdf~, and so on.
 
 This project is a university assignment for my /Computer and Web
 Techniques/ (/Techniques Informatiques et Web/).
+
+The example stopwords list for French comes from the [[http://members.unine.ch/jacques.savoy/clef/index.html][Université de
+Neuchâtel]]. It is not covered by the repository’s license but by the
+BSD License. See its homepage.

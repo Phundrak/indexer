@@ -5,7 +5,6 @@ use std::path::PathBuf;
 
 use comfy_table::Table;
 
-// type Indexer = HashMap<String, HashSet<PathBuf>>;
 #[derive(Debug)]
 pub struct Indexer(pub HashMap<String, HashSet<PathBuf>>);
 
@@ -55,7 +54,34 @@ pub fn get_files_in_dir(dir: PathBuf) -> Vec<PathBuf> {
     files
 }
 
-pub fn get_keywords_from_file(file: &PathBuf, keywords: &mut Indexer) {
+pub fn get_stopwords(path: Option<PathBuf>) -> Option<Vec<String>> {
+    match path {
+        Some(file) => {
+            let content = read_to_string(file).unwrap();
+            let words: Vec<String> =
+                content.split('\n').map(|e| e.to_string()).collect();
+            Some(words)
+        }
+        None => None,
+    }
+}
+
+fn is_stopword(word: &String, stop_words: &Option<Vec<String>>) -> bool {
+    match stop_words {
+        Some(words) => words.contains(word),
+        None => false,
+    }
+}
+
+fn is_short_word(word: &String) -> bool {
+    word.len() <= 2
+}
+
+pub fn get_keywords_from_file(
+    file: &PathBuf,
+    keywords: &mut Indexer,
+    stop_words: &Option<Vec<String>>,
+) {
     let content = read_to_string(file).unwrap();
     let words: Vec<String> = content
         .split(
@@ -65,8 +91,9 @@ pub fn get_keywords_from_file(file: &PathBuf, keywords: &mut Indexer) {
             ][..],
         )
         .filter_map(|e| {
-            if e.len() > 2 {
-                Some(e.to_lowercase())
+            let word = e.to_lowercase();
+            if !is_short_word(&word) && !is_stopword(&word, stop_words) {
+                Some(word)
             } else {
                 None
             }
