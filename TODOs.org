@@ -1,0 +1,5 @@
+#+startup: content
+* TODO Link Indexer to a database
+Use diesel.rs to link Indexer to a PostgreSQL database.
+* TODO Implement a RESTful web server around Indexer
+Use rocket.rs to server a REST API frontends can call.
