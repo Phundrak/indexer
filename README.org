@@ -10,3 +10,8 @@ Techniques/ (/Techniques Informatiques et Web/).
 The example stopwords list for French comes from the [[http://members.unine.ch/jacques.savoy/clef/index.html][Université de
 Neuchâtel]]. It is not covered by the repository’s license but by the
 BSD License. See its homepage.
+
+This program can be used with GLÀFF in order to further reduce the
+amount of keywords found in a document. GLÀFF is released by the
+Université Toulouse 2 on [[http://redac.univ-tlse2.fr/lexiques/glaff.html][this webpage]] under the [[https://creativecommons.org/licenses/by-sa/3.0/][CC-BY-SA-3.0 license]]
+and is not covered by the license of this repository.

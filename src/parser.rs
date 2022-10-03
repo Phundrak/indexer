@@ -66,6 +66,27 @@ pub fn get_stopwords(path: Option<PathBuf>) -> Option<Vec<String>> {
     }
 }
 
+pub fn get_lemmes(path: Option<PathBuf>) -> Option<HashMap<String, String>> {
+    match path {
+        None => None,
+        Some(file) => {
+            // let mut reader = csv::Reader::from_path(file).unwrap();
+            let mut reader = csv::ReaderBuilder::new()
+                .delimiter(b'|')
+                .has_headers(false)
+                .from_path(file)
+                .unwrap();
+            let lemme: HashMap<String, String> = HashMap::new();
+            for result in reader.records() {
+                let record = result.unwrap();
+                // println!("{:?}", record.get(0));
+                lemme.insert(record.get(0), record.get(2));
+            }
+            Some(lemme)
+        }
+    }
+}
+
 fn is_stopword(word: &String, stop_words: &Option<Vec<String>>) -> bool {
     match stop_words {
         Some(words) => words.contains(word),
