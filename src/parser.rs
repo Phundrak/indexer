@@ -102,12 +102,10 @@ fn is_short_word(word: &String) -> bool {
 fn get_lemme(word: String, lemmes: &Option<HashMap<String, String>>) -> String {
     match lemmes {
         None => word,
-        Some(collection) => {
-            match collection.get(&word) {
-                Some(lemme) => lemme.clone(),
-                None => word
-            }
-        }
+        Some(collection) => match collection.get(&word) {
+            Some(lemme) => lemme.clone(),
+            None => word,
+        },
     }
 }
 
@@ -115,7 +113,7 @@ pub fn get_keywords_from_file(
     file: &PathBuf,
     keywords: &mut Indexer,
     stop_words: &Option<Vec<String>>,
-    lemmes: &Option<HashMap<String, String>>
+    lemmes: &Option<HashMap<String, String>>,
 ) {
     let content = read_to_string(file).unwrap();
     let words: Vec<String> = content

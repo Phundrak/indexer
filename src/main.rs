@@ -26,7 +26,12 @@ fn main() {
     let mut keywords = Indexer::new();
 
     for file in files {
-        parser::get_keywords_from_file(&file, &mut keywords, &stop_words, &lemmes);
+        parser::get_keywords_from_file(
+            &file,
+            &mut keywords,
+            &stop_words,
+            &lemmes,
+        );
     }
 
     println!("Keywords detected:");
