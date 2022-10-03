@@ -6,7 +6,7 @@ mod parser;
 use parser::Indexer;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "basic")]
+#[structopt(name = "indexer")]
 struct Opt {
     #[structopt(name = "DIRECTORY", parse(from_os_str))]
     directory: PathBuf,
