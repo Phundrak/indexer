@@ -70,17 +70,18 @@ pub fn get_lemmes(path: Option<PathBuf>) -> Option<HashMap<String, String>> {
     match path {
         None => None,
         Some(file) => {
-            // let mut reader = csv::Reader::from_path(file).unwrap();
             let mut reader = csv::ReaderBuilder::new()
                 .delimiter(b'|')
                 .has_headers(false)
                 .from_path(file)
                 .unwrap();
-            let lemme: HashMap<String, String> = HashMap::new();
+            let mut lemme: HashMap<String, String> = HashMap::new();
             for result in reader.records() {
                 let record = result.unwrap();
-                // println!("{:?}", record.get(0));
-                lemme.insert(record.get(0), record.get(2));
+                lemme.insert(
+                    record.get(0).unwrap().to_string(),
+                    record.get(2).unwrap().to_string(),
+                );
             }
             Some(lemme)
         }
