@@ -1,4 +1,6 @@
 #+startup: content
+
+* TODO Count number of occurrences of words within a file
 * TODO Link Indexer to a database
 Use diesel.rs to link Indexer to a PostgreSQL database.
 * TODO Implement a RESTful web server around Indexer
