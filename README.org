@@ -1,11 +1,71 @@
 #+title: Indexer
 
+* Introduction
 This project is a simple indexer for French text in plaintext for now,
 richer text later. Hopefully this will eventually support reading
 formats such as ~.docx~, ~.odt~, ~.pdf~, and so on.
 
 This project is a university assignment for my /Computer and Web
 Techniques/ (/Techniques Informatiques et Web/).
+
+* Usage
+** Compilation
+Development is made with Rust 1.63 stable. To compile the project, run
+the following commands in the project’s root.
+#+begin_src shell
+$ cargo compile # with debug symbol and minimal optimization
+$ cargo compile --release # without debug symbols and -O2 optimization
+#+end_src
+
+** Running the project
+You can run the project with the following command. It will also
+compile the project if you haven’t done so already.
+#+begin_src shell
+$ cargo run -- USER_OPTIONS # debug version
+$ cargo run --release -- USER_OPTIONS # release version
+#+end_src
+
+If you already compiled the project manually, you can run it with the
+following commands.
+#+begin_src shell
+$ ./target/debug/indexer USER_OPTIONS # if you compiled the debug version
+$ ./target/release/indexer USER_OPTIONS # if you compiled the release version
+#+end_src
+
+To get a list of options supported by the program, you can use the ~-h~
+or ~--help~ flag. Here is a list of the supported options:
+- ~-g~ / ~--glaff~ :: Path to the [[http://redac.univ-tlse2.fr/lexiques/glaff.html][GLÀFF]]
+- ~-s~ / ~--stop-words~ :: Path to a file listing stop words
+- ~-h~ / ~--help~ :: Show help message
+- ~-V~ / ~--version~ :: Show the version of the binary
+
+** Features
+Indexer currently supports reading from a directory in which plaintext
+files are stored. By default, words of two characters or less are
+ignored, including those only separated by a punctiation mark from
+other words (such as apostrophes).
+
+If specified, a list of stop words can be used to ignore words in the
+documents analyzed.
+
+For documents in French, the GLÀFF can be used in order to normalize
+words from their plural/feminine/conjugated form to their standard
+lemma.
+
+** Roadmap [0/4]
+- [ ] Read other formats than plaintext [0/3]
+  - [ ] PDF
+  - [ ] doc/docx
+  - [ ] ODT
+- [ ] Store the GLÀFF in a database
+- [ ] Store results is a database
+- [ ] Make a dedicated web interface [0/2]
+  - [ ] Access the database through a webserver
+  - [ ] Search for keywords through a web interface
+
+* License
+This repository is licensed under the GPL-3.0 license. You can find
+the full text in the file [[file:LICENSE][LICENSE]].
 
 The example stopwords list for French comes from the [[http://members.unine.ch/jacques.savoy/clef/index.html][Université de
 Neuchâtel]]. It is not covered by the repository’s license but by the
