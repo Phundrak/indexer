@@ -22,11 +22,11 @@ fn main() {
     let opt = Opt::from_args();
     let files = parser::get_files_in_dir(opt.directory);
     let stop_words = parser::get_stopwords(opt.stop_words);
-    let _lemmes = parser::get_lemmes(opt.glaff);
+    let lemmes = parser::get_lemmes(opt.glaff);
     let mut keywords = Indexer::new();
 
     for file in files {
-        parser::get_keywords_from_file(&file, &mut keywords, &stop_words);
+        parser::get_keywords_from_file(&file, &mut keywords, &stop_words, &lemmes);
     }
 
     println!("Keywords detected:");
