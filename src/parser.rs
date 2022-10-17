@@ -59,8 +59,7 @@ pub fn get_keywords_from_text(
     stop_words: &Vec<String>,
     lemmes: &Option<HashMap<String, String>>,
 ) -> Vec<String> {
-    let words: Vec<String> = text
-        .split(PUNCTUATION)
+    text.split(PUNCTUATION)
         .filter_map(|e| {
             let word = get_lemme(e.to_lowercase(), lemmes);
             if !is_short_word(&word) && !is_stopword(&word, stop_words) {
@@ -69,6 +68,5 @@ pub fn get_keywords_from_text(
                 None
             }
         })
-        .collect();
-    words
+        .collect::<Vec<String>>()
 }
