@@ -1,39 +1,28 @@
-use std::path::PathBuf;
-use structopt::StructOpt;
+#[macro_use]
+extern crate rocket;
 
+mod db;
 mod parser;
 
-use parser::Indexer;
+use std::path::PathBuf;
+use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "indexer")]
 struct Opt {
-    #[structopt(name = "DIRECTORY", parse(from_os_str))]
-    directory: PathBuf,
-
     #[structopt(short = "s", long, parse(from_os_str))]
-    stop_words: Option<PathBuf>,
+    stop_words: PathBuf,
 
     #[structopt(short = "g", long, parse(from_os_str))]
     glaff: Option<PathBuf>,
 }
 
-fn main() {
+#[launch]
+fn rocket() -> _ {
     let opt = Opt::from_args();
-    let files = parser::get_files_in_dir(opt.directory);
-    let stop_words = parser::get_stopwords(opt.stop_words);
-    let lemmes = parser::get_lemmes(opt.glaff);
-    let mut keywords = Indexer::new();
-
-    for file in files {
-        parser::get_keywords_from_file(
-            &file,
-            &mut keywords,
-            &stop_words,
-            &lemmes,
-        );
-    }
-
-    println!("Keywords detected:");
-    println!("{keywords}");
+    rocket::build().mount("/", routes![]).manage(db::StateMgr {
+        connection: db::establish_connection(),
+        stop_words: parser::get_stopwords(opt.stop_words),
+        glaff: parser::get_lemmes(opt.glaff),
+    })
 }
