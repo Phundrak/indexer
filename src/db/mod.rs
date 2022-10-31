@@ -77,6 +77,7 @@ pub fn doc_list_keywords(
         .select((dsl::word, dsl::occurrences))
         .load(conn)?;
     keywords.sort_by_key(|k| k.1);
+    keywords.reverse();
     let keywords: Vec<String> = keywords.iter().map(|k| k.0.clone()).collect();
     Ok(keywords)
 }
@@ -91,6 +92,7 @@ pub fn keyword_list_docs(
         .select((dsl::document, dsl::occurrences))
         .load::<(String, i32)>(conn)?;
     docs.sort_by_key(|k| k.1);
+    docs.reverse();
     let docs: Vec<String> = docs.iter().map(|s| s.0.clone()).collect();
     Ok(docs)
 }
