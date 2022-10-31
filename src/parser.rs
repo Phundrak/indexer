@@ -1,72 +1,34 @@
-use std::collections::{HashMap, HashSet};
-use std::fmt::{self, Display};
-use std::fs::{self, read_to_string};
+use std::collections::HashMap;
+use std::fs::read_to_string;
 use std::path::PathBuf;
 
-use comfy_table::Table;
+static PUNCTUATION: &[char] = &[
+    ' ', '(', ')', '*', ',', '.', '/', ';', '[', '\'', '\\', '\n',
+    ']', '^', '_', '{', '}', ' ', '«', '»', '’', '…', ' ', '|', '↑',
+    '─', '┼', '*'
+];
 
-#[derive(Debug)]
-pub struct Indexer(pub HashMap<String, HashSet<PathBuf>>);
-
-impl Indexer {
-    pub fn new() -> Indexer {
-        Indexer(HashMap::new())
-    }
+/// Get list of stopwords from a file.
+///
+/// The file pointed at by `path` must contain one stopword per line.
+pub fn get_stopwords(path: PathBuf) -> Vec<String> {
+    let content = read_to_string(path).unwrap();
+    let words: Vec<String> =
+        content.split('\n').map(|e| e.to_string()).collect();
+    words
 }
 
-impl Default for Indexer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub type Glaff = HashMap<String, String>;
 
-impl Display for Indexer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut table = Table::new();
-        table.set_header(vec!["keyword", "files"]);
-        for keyword in &self.0 {
-            table.add_row(vec![
-                keyword.0,
-                &keyword
-                    .1
-                    .iter()
-                    .map(|e| format!("{:?}", e))
-                    .collect::<Vec<String>>()
-                    .join(", "),
-            ]);
-        }
-        write!(f, "{table}")
-    }
-}
-
-pub fn get_files_in_dir(dir: PathBuf) -> Vec<PathBuf> {
-    let files: Vec<PathBuf> = fs::read_dir(dir)
-        .unwrap()
-        .filter_map(|entry| {
-            let path = entry.unwrap().path();
-            if !path.is_dir() {
-                Some(path)
-            } else {
-                None
-            }
-        })
-        .collect();
-    files
-}
-
-pub fn get_stopwords(path: Option<PathBuf>) -> Option<Vec<String>> {
-    match path {
-        Some(file) => {
-            let content = read_to_string(file).unwrap();
-            let words: Vec<String> =
-                content.split('\n').map(|e| e.to_string()).collect();
-            Some(words)
-        }
-        None => None,
-    }
-}
-
-pub fn get_lemmes(path: Option<PathBuf>) -> Option<HashMap<String, String>> {
+/// Parse the GLÀFF
+///
+/// Results in a HashMap containing on the first hand pretty much all
+/// words in the French language, and on the other hand its canonical
+/// form.
+///
+/// If `path` is `None`, return nothing (useful when not dealing with
+/// French text)
+pub fn parse_glaff(path: Option<PathBuf>) -> Option<Glaff> {
     match path {
         None => None,
         Some(file) => {
@@ -88,19 +50,9 @@ pub fn get_lemmes(path: Option<PathBuf>) -> Option<HashMap<String, String>> {
     }
 }
 
-fn is_stopword(word: &String, stop_words: &Option<Vec<String>>) -> bool {
-    match stop_words {
-        Some(words) => words.contains(word),
-        None => false,
-    }
-}
-
-fn is_short_word(word: &String) -> bool {
-    word.len() <= 2
-}
-
-fn get_lemme(word: String, lemmes: &Option<HashMap<String, String>>) -> String {
-    match lemmes {
+/// Get a lemma from the GLAFF
+pub fn get_lemma_from_glaff(word: String, glaff: &Option<Glaff>) -> String {
+    match glaff {
         None => word,
         Some(collection) => match collection.get(&word) {
             Some(lemme) => lemme.clone(),
@@ -109,37 +61,36 @@ fn get_lemme(word: String, lemmes: &Option<HashMap<String, String>>) -> String {
     }
 }
 
-pub fn get_keywords_from_file(
-    file: &PathBuf,
-    keywords: &mut Indexer,
-    stop_words: &Option<Vec<String>>,
+/// Determine if a word is a stopword
+fn is_stopword(word: &String, stop_words: &[String]) -> bool {
+    stop_words.contains(word)
+}
+
+/// Determine if a word is a short word
+///
+/// # Examples
+///
+/// ```
+/// assert!(is_short_word("je"));
+/// assert!(!(is_short_word("bonjour")));
+/// ```
+fn is_short_word(word: &String) -> bool {
+    word.len() <= 2
+}
+
+pub fn get_keywords_from_text(
+    text: String,
+    stop_words: &[String],
     lemmes: &Option<HashMap<String, String>>,
-) {
-    let content = read_to_string(file).unwrap();
-    let words: Vec<String> = content
-        .split(
-            &[
-                ' ', '(', ')', '*', ',', '.', '/', ';', '[', '\'', '\\', '\n',
-                ']', '^', '_', '{', '}', ' ', '«', '»', '’', '…', ' ',
-            ][..],
-        )
+) -> Vec<String> {
+    text.split(PUNCTUATION)
         .filter_map(|e| {
-            let word = get_lemme(e.to_lowercase(), lemmes);
+            let word = get_lemma_from_glaff(e.to_lowercase(), lemmes);
             if !is_short_word(&word) && !is_stopword(&word, stop_words) {
                 Some(word)
             } else {
                 None
             }
         })
-        .collect();
-    for word in words {
-        if !keywords.0.contains_key(&word) {
-            keywords.0.insert(word.clone(), HashSet::new());
-        }
-        keywords
-            .0
-            .get_mut(&word)
-            .unwrap()
-            .insert(file.to_path_buf());
-    }
+        .collect::<Vec<String>>()
 }
