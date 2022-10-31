@@ -1,15 +1,20 @@
 #[macro_use]
 extern crate rocket;
 
+use std::error::Error;
+
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
+
+use std::path::PathBuf;
+use structopt::StructOpt;
+
+use rocket_cors::{AllowedHeaders, AllowedOrigins};
+use rocket::http::Method;
 
 mod db;
 mod parser;
 mod server;
-
-use std::path::PathBuf;
-use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "indexer")]
@@ -21,32 +26,56 @@ struct Opt {
     glaff: Option<PathBuf>,
 }
 
-#[launch]
-fn rocket() -> _ {
-    let opt = Opt::from_args();
+pub fn setup_loggin() {
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::TRACE)
         .finish();
     tracing::subscriber::set_global_default(subscriber)
         .expect("Setting default subscriber failed");
+}
+
+#[rocket::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    setup_loggin();
+
+    let opt = Opt::from_args();
+
     info!("Reading stopwords");
     let stopwords = parser::get_stopwords(opt.stop_words);
     info!("Reading GLÀFF");
     let glaff = parser::parse_glaff(opt.glaff);
+
+    let allowed_origins = AllowedOrigins::some_regex(&[".*"]);
+    let cors = rocket_cors::CorsOptions {
+        allowed_origins,
+        allowed_methods: vec![Method::Get, Method::Post, Method::Delete]
+            .into_iter()
+            .map(From::from)
+            .collect(),
+        allowed_headers: AllowedHeaders::some(&["Authorization", "Accept"]),
+        allow_credentials: true,
+        ..Default::default()
+    }
+    .to_cors()?;
+
     info!("Launching server");
-    rocket::build()
+    let _ = rocket::build()
         .mount(
             "/",
             routes![
-                server::index_url,              // /                 POST
-                server::search_keyword,         // /keyword/:keyword GET
-                server::document_list_keywords, // /document/:id     GET
-                server::delete_document,        // /document         DELETE
+                server::index_url,      // /url?url=:url             POST
+                server::search_keyword, // /keyword?keyword=:keyword GET
+                server::document_list_keywords, // /doc?doc=:id              GET
+                server::delete_document, // /doc                      DELETE
             ],
         )
+        .attach(cors)
         .manage(server::ServerState {
             pool: db::get_connection_pool(),
             stopwords,
             glaff,
         })
+        .launch()
+        .await?;
+    Ok(())
 }
