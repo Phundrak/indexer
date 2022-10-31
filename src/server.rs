@@ -77,7 +77,31 @@ fn parse_and_insert(
     Ok(())
 }
 
-#[post("/url?<url>")]
+#[get("/keyword?<keyword>")]
+pub fn search_keyword(
+    keyword: String,
+    state: &State<ServerState>,
+) -> ApiResponse<Json<Vec<String>>> {
+    let conn = &mut get_connector!(state);
+    let keyword =
+        parser::get_lemma_from_glaff(keyword.to_lowercase(), &state.glaff);
+    json_val_or_error!(db::keyword_list_docs(conn, &keyword))
+}
+
+#[get("/search?<query>")]
+pub fn search_multiple_words(
+    query: String,
+    state: &State<ServerState>,
+) -> ApiResponse<Json<Vec<String>>> {
+    let conn = &mut get_connector!(state);
+    let query = query
+        .split_whitespace()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+    json_val_or_error!(db::multilpe_keywords(conn, &query))
+}
+
+#[post("/doc?<url>")]
 pub async fn index_url(
     url: String,
     state: &State<ServerState>,
@@ -119,15 +143,10 @@ pub async fn index_url(
     Ok(())
 }
 
-#[get("/keyword?<keyword>")]
-pub fn search_keyword(
-    keyword: String,
-    state: &State<ServerState>,
-) -> ApiResponse<Json<Vec<String>>> {
+#[get("/doc")]
+pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
     let conn = &mut get_connector!(state);
-    let keyword =
-        parser::get_lemma_from_glaff(keyword.to_lowercase(), &state.glaff);
-    json_val_or_error!(db::keyword_list_docs(conn, &keyword))
+    json_val_or_error!(db::list_documents(conn))
 }
 
 #[get("/doc?<doc>")]

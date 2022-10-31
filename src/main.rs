@@ -9,8 +9,8 @@ use tracing_subscriber::FmtSubscriber;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use rocket::http::Method;
+use rocket_cors::{AllowedHeaders, AllowedOrigins};
 
 mod db;
 mod parser;
@@ -63,10 +63,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .mount(
             "/",
             routes![
-                server::index_url,      // /url?url=:url             POST
                 server::search_keyword, // /keyword?keyword=:keyword GET
+                server::search_multiple_words, // /search?query=:query GET
+                server::list_docs,      // /doc GET
+                server::index_url,      // /doc?url=:url             POST
                 server::document_list_keywords, // /doc?doc=:id              GET
-                server::delete_document, // /doc                      DELETE
+                server::delete_document, // /doc?id=:id                      DELETE
             ],
         )
         .attach(cors)

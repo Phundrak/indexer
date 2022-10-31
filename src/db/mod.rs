@@ -3,6 +3,8 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::PgConnection;
 use dotenvy::dotenv;
 
+use std::collections::HashMap;
+
 use std::env;
 
 pub mod models;
@@ -97,6 +99,31 @@ pub fn keyword_list_docs(
     Ok(docs)
 }
 
+pub fn multilpe_keywords(
+    conn: &mut PgConnection,
+    words: &[String],
+) -> DbResult<Vec<String>> {
+    use keywords::dsl;
+    let mut docs: HashMap<String, i32> = HashMap::new();
+    for word in words {
+        let list = dsl::keywords
+            .filter(dsl::word.eq(word))
+            .select((dsl::document, dsl::occurrences))
+            .load::<(String, i32)>(conn)?;
+        for item in list {
+            docs.entry(item.0)
+                .and_modify(|occ| *occ += item.1)
+                .or_insert(item.1);
+        }
+    }
+    let mut docs: Vec<(String, i32)> = docs
+        .iter()
+        .map(|(doc, occ)| (doc.to_owned(), occ.to_owned()))
+        .collect();
+    docs.sort_by_key(|k| k.1);
+    Ok(docs.iter().map(|k| k.0.to_owned()).collect::<Vec<String>>())
+}
+
 pub fn add_document(
     conn: &mut PgConnection,
     document: &String,
@@ -106,6 +133,11 @@ pub fn add_document(
         .values(dsl::name.eq(document))
         .execute(conn)?;
     Ok(())
+}
+
+pub fn list_documents(conn: &mut PgConnection) -> DbResult<Vec<String>> {
+    use documents::dsl;
+    dsl::documents.select(dsl::name).load(conn)
 }
 
 pub fn delete_document(
