@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate rocket;
 
+use tracing::{info, Level};
+use tracing_subscriber::FmtSubscriber;
+
 mod db;
 mod parser;
 mod server;
@@ -21,6 +24,11 @@ struct Opt {
 #[launch]
 fn rocket() -> _ {
     let opt = Opt::from_args();
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::TRACE)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Setting default subscriber failed");
     info!("Reading stopwords");
     let stopwords = parser::get_stopwords(opt.stop_words);
     info!("Reading GLÀFF");

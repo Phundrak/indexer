@@ -1,11 +1,11 @@
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
 use rocket::http::Status;
-use rocket::log::private::info;
 use rocket::response::status::Custom;
 use rocket::serde::json::Json;
 use rocket::State;
 use scraper::{Html, Selector};
+use tracing::info;
 
 use crate::db;
 use crate::parser::Glaff;

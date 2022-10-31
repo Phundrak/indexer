@@ -972,6 +972,8 @@ dependencies = [
  "rocket",
  "scraper",
  "structopt",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
