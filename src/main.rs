@@ -3,6 +3,7 @@ extern crate rocket;
 
 mod db;
 mod parser;
+mod server;
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -20,9 +21,24 @@ struct Opt {
 #[launch]
 fn rocket() -> _ {
     let opt = Opt::from_args();
-    rocket::build().mount("/", routes![]).manage(db::StateMgr {
-        connection: db::establish_connection(),
-        stop_words: parser::get_stopwords(opt.stop_words),
-        glaff: parser::get_lemmes(opt.glaff),
-    })
+    info!("Reading stopwords");
+    let stopwords = parser::get_stopwords(opt.stop_words);
+    info!("Reading GLÀFF");
+    let glaff = parser::parse_glaff(opt.glaff);
+    info!("Launching server");
+    rocket::build()
+        .mount(
+            "/",
+            routes![
+                server::index_url,              // /                 POST
+                server::search_keyword,         // /keyword/:keyword GET
+                server::document_list_keywords, // /document/:id     GET
+                server::delete_document,        // /document         DELETE
+            ],
+        )
+        .manage(server::ServerState {
+            pool: db::get_connection_pool(),
+            stopwords,
+            glaff,
+        })
 }

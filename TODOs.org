@@ -1,7 +1,10 @@
 #+startup: content
 
-* TODO Count number of occurrences of words within a file
-* TODO Link Indexer to a database
+* DONE Count number of occurrences of words within a file
+CLOSED: [2022-10-31 Mon 06:04]
+* DONE Link Indexer to a database
+CLOSED: [2022-10-31 Mon 06:04]
 Use diesel.rs to link Indexer to a PostgreSQL database.
-* TODO Implement a RESTful web server around Indexer
+* DONE Implement a RESTful web server around Indexer
+CLOSED: [2022-10-31 Mon 06:04]
 Use rocket.rs to server a REST API frontends can call.

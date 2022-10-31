@@ -1,7 +1,11 @@
 -- Your SQL goes here
 CREATE TABLE keywords (
-  word VARCHAR NOT NULL PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
+  word VARCHAR NOT NULL,
   occurrences INTEGER NOT NULL DEFAULT 1,
-  document VARCHAR NOT NULL,
-  FOREIGN KEY(document) REFERENCES documents(name)
+  document VARCHAR
+           REFERENCES documents(name)
+           ON UPDATE CASCADE
+           ON DELETE CASCADE
+           NOT NULL
 )

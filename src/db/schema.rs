@@ -2,15 +2,16 @@
 
 diesel::table! {
     documents (name) {
-        name -> Text,
+        name -> Varchar,
     }
 }
 
 diesel::table! {
-    keywords (word) {
-        word -> Text,
-        occurrences -> Integer,
-        document -> Text,
+    keywords (id) {
+        id -> Int4,
+        word -> Varchar,
+        occurrences -> Int4,
+        document -> Varchar,
     }
 }
 

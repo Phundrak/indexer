@@ -3,10 +3,14 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 
 static PUNCTUATION: &[char] = &[
-    ' ', '(', ')', '*', ',', '.', '/', ';', '[', '\'', '\\', '\n', ']', '^',
-    '_', '{', '}', ' ', '«', '»', '’', '…', ' ',
+    ' ', '(', ')', '*', ',', '.', '/', ';', '[', '\'', '\\', '\n',
+    ']', '^', '_', '{', '}', ' ', '«', '»', '’', '…', ' ', '|', '↑',
+    '─', '┼', '*'
 ];
 
+/// Get list of stopwords from a file.
+///
+/// The file pointed at by `path` must contain one stopword per line.
 pub fn get_stopwords(path: PathBuf) -> Vec<String> {
     let content = read_to_string(path).unwrap();
     let words: Vec<String> =
@@ -14,7 +18,17 @@ pub fn get_stopwords(path: PathBuf) -> Vec<String> {
     words
 }
 
-pub fn get_lemmes(path: Option<PathBuf>) -> Option<HashMap<String, String>> {
+pub type Glaff = HashMap<String, String>;
+
+/// Parse the GLÀFF
+///
+/// Results in a HashMap containing on the first hand pretty much all
+/// words in the French language, and on the other hand its canonical
+/// form.
+///
+/// If `path` is `None`, return nothing (useful when not dealing with
+/// French text)
+pub fn parse_glaff(path: Option<PathBuf>) -> Option<Glaff> {
     match path {
         None => None,
         Some(file) => {
@@ -36,16 +50,9 @@ pub fn get_lemmes(path: Option<PathBuf>) -> Option<HashMap<String, String>> {
     }
 }
 
-fn is_stopword(word: &String, stop_words: &Vec<String>) -> bool {
-    stop_words.contains(word)
-}
-
-fn is_short_word(word: &String) -> bool {
-    word.len() <= 2
-}
-
-fn get_lemme(word: String, lemmes: &Option<HashMap<String, String>>) -> String {
-    match lemmes {
+/// Get a lemma from the GLAFF
+fn get_lemma_from_glaff(word: String, glaff: &Option<Glaff>) -> String {
+    match glaff {
         None => word,
         Some(collection) => match collection.get(&word) {
             Some(lemme) => lemme.clone(),
@@ -54,14 +61,31 @@ fn get_lemme(word: String, lemmes: &Option<HashMap<String, String>>) -> String {
     }
 }
 
+/// Determine if a word is a stopword
+fn is_stopword(word: &String, stop_words: &[String]) -> bool {
+    stop_words.contains(word)
+}
+
+/// Determine if a word is a short word
+///
+/// # Examples
+///
+/// ```
+/// assert!(is_short_word("je"));
+/// assert!(!(is_short_word("bonjour")));
+/// ```
+fn is_short_word(word: &String) -> bool {
+    word.len() <= 2
+}
+
 pub fn get_keywords_from_text(
     text: String,
-    stop_words: &Vec<String>,
+    stop_words: &[String],
     lemmes: &Option<HashMap<String, String>>,
 ) -> Vec<String> {
     text.split(PUNCTUATION)
         .filter_map(|e| {
-            let word = get_lemme(e.to_lowercase(), lemmes);
+            let word = get_lemma_from_glaff(e.to_lowercase(), lemmes);
             if !is_short_word(&word) && !is_stopword(&word, stop_words) {
                 Some(word)
             } else {
