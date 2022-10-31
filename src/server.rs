@@ -7,8 +7,8 @@ use rocket::State;
 use scraper::{Html, Selector};
 use tracing::info;
 
-use crate::db;
 use crate::parser::Glaff;
+use crate::{db, parser};
 pub struct ServerState {
     pub pool: Pool<ConnectionManager<PgConnection>>,
     pub stopwords: Vec<String>,
@@ -125,6 +125,8 @@ pub fn search_keyword(
     state: &State<ServerState>,
 ) -> ApiResponse<Json<Vec<String>>> {
     let conn = &mut get_connector!(state);
+    let keyword =
+        parser::get_lemma_from_glaff(keyword.to_lowercase(), &state.glaff);
     json_val_or_error!(db::keyword_list_docs(conn, &keyword))
 }
 

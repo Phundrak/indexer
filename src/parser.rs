@@ -51,7 +51,7 @@ pub fn parse_glaff(path: Option<PathBuf>) -> Option<Glaff> {
 }
 
 /// Get a lemma from the GLAFF
-fn get_lemma_from_glaff(word: String, glaff: &Option<Glaff>) -> String {
+pub fn get_lemma_from_glaff(word: String, glaff: &Option<Glaff>) -> String {
     match glaff {
         None => word,
         Some(collection) => match collection.get(&word) {
