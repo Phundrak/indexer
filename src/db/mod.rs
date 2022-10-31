@@ -99,10 +99,11 @@ pub fn keyword_list_docs(
     Ok(docs)
 }
 
-pub fn multilpe_keywords(
+use crate::server::RankedDoc;
+pub fn multiple_keywords(
     conn: &mut PgConnection,
     words: &[String],
-) -> DbResult<Vec<String>> {
+) -> DbResult<Vec<RankedDoc>> {
     use keywords::dsl;
     let mut docs: HashMap<String, i32> = HashMap::new();
     for word in words {
@@ -121,7 +122,14 @@ pub fn multilpe_keywords(
         .map(|(doc, occ)| (doc.to_owned(), occ.to_owned()))
         .collect();
     docs.sort_by_key(|k| k.1);
-    Ok(docs.iter().map(|k| k.0.to_owned()).collect::<Vec<String>>())
+    docs.reverse();
+    Ok(docs
+        .iter()
+        .map(|k| RankedDoc {
+            doc: k.0.to_owned(),
+            hits: k.1.to_owned(),
+        })
+        .collect::<Vec<RankedDoc>>())
 }
 
 pub fn add_document(

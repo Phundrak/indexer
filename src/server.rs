@@ -2,6 +2,7 @@ use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
 use rocket::http::Status;
 use rocket::response::status::Custom;
+use rocket::serde::{Serialize, Deserialize};
 use rocket::serde::json::Json;
 use rocket::State;
 use scraper::{Html, Selector};
@@ -13,6 +14,13 @@ pub struct ServerState {
     pub pool: Pool<ConnectionManager<PgConnection>>,
     pub stopwords: Vec<String>,
     pub glaff: Option<Glaff>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct RankedDoc {
+    pub doc: String,
+    pub hits: i32,
 }
 
 macro_rules! api_error {
@@ -92,13 +100,13 @@ pub fn search_keyword(
 pub fn search_multiple_words(
     query: String,
     state: &State<ServerState>,
-) -> ApiResponse<Json<Vec<String>>> {
+) -> ApiResponse<Json<Vec<RankedDoc>>> {
     let conn = &mut get_connector!(state);
     let query = query
         .split_whitespace()
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
-    json_val_or_error!(db::multilpe_keywords(conn, &query))
+    json_val_or_error!(db::multiple_keywords(conn, &query))
 }
 
 #[post("/doc?<url>")]
