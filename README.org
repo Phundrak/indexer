@@ -52,15 +52,16 @@ For documents in French, the GLÀFF can be used in order to normalize
 words from their plural/feminine/conjugated form to their standard
 lemma.
 
-** Roadmap [0/4]
+** Roadmap [1/4]
 - [ ] Read other formats than plaintext [0/3]
   - [ ] PDF
   - [ ] doc/docx
   - [ ] ODT
 - [ ] Store the GLÀFF in a database
-- [ ] Store results is a database
-- [ ] Make a dedicated web interface [0/2]
-  - [ ] Access the database through a webserver
+- [X] Store results is a database
+- [-] Make a dedicated web interface [2/3]
+  - [X] Access the database through a webserver
+  - [X] Parse web pages
   - [ ] Search for keywords through a web interface
 
 * License
