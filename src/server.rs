@@ -109,9 +109,10 @@ pub fn search_multiple_words(
     state: &State<ServerState>,
 ) -> ApiResponse<Json<Vec<RankedDoc>>> {
     let conn = &mut get_connector!(state);
+    let glaff = &state.glaff;
     let query = query
         .split_whitespace()
-        .map(|s| s.to_string())
+        .map(|s| parser::get_lemma_from_glaff(s.to_lowercase(), glaff))
         .collect::<Vec<String>>();
     json_val_or_error!(db::keywords_search(conn, &query))
 }
