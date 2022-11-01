@@ -1,9 +1,22 @@
-use diesel::prelude::*;
 use crate::db::schema::{documents, keywords};
+use diesel::prelude::*;
+use rocket::serde::{Deserialize, Serialize};
 
-#[derive(Debug, Queryable, Insertable)]
+#[derive(
+    Debug,
+    Queryable,
+    Insertable,
+    Hash,
+    Deserialize,
+    Serialize,
+    Clone,
+    PartialEq,
+    Eq,
+)]
+#[serde(crate = "rocket::serde")]
 pub struct Document {
     pub name: String,
+    pub title: String,
 }
 
 #[derive(Debug, Queryable, Insertable)]

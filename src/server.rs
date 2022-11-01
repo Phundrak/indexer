@@ -2,8 +2,8 @@ use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
 use rocket::http::Status;
 use rocket::response::status::Custom;
-use rocket::serde::{Serialize, Deserialize};
 use rocket::serde::json::Json;
+use rocket::serde::{Deserialize, Serialize};
 use rocket::State;
 use scraper::{Html, Selector};
 use tracing::info;
@@ -20,6 +20,7 @@ pub struct ServerState {
 #[serde(crate = "rocket::serde")]
 pub struct RankedDoc {
     pub doc: String,
+    pub title: String,
     pub hits: i32,
 }
 
@@ -75,9 +76,15 @@ fn parse_and_insert(
         &state.stopwords,
         &state.glaff,
     );
+    let document = match db::get_document(conn, url) {
+        Ok(val) => val,
+        Err(e) => {
+            return api_error!(e.to_string());
+        }
+    };
     for keyword in keywords {
         ok_or_err!(
-            db::insert_word(conn, &keyword, url),
+            db::insert_word(conn, &keyword, document.to_owned()),
             "{}: Could not insert keyword \"{}\"",
             keyword
         )
@@ -106,7 +113,7 @@ pub fn search_multiple_words(
         .split_whitespace()
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
-    json_val_or_error!(db::multiple_keywords(conn, &query))
+    json_val_or_error!(db::keywords_search(conn, &query))
 }
 
 #[post("/doc?<url>")]

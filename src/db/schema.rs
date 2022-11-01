@@ -3,6 +3,7 @@
 diesel::table! {
     documents (name) {
         name -> Varchar,
+        title -> Varchar,
     }
 }
 

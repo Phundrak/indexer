@@ -27,13 +27,20 @@ pub fn get_connection_pool() -> Pool<ConnectionManager<PgConnection>> {
         .expect("Could not build connection pool")
 }
 
+pub fn get_document(
+    conn: &mut PgConnection,
+    name: &String,
+) -> DbResult<Document> {
+    documents::dsl::documents.find(name).first(conn)
+}
+
 pub fn insert_word(
     conn: &mut PgConnection,
     word: &String,
-    document: &String,
+    document: Document,
 ) -> DbResult<()> {
     let keyword: Vec<Keyword> = keywords::dsl::keywords
-        .filter(keywords::dsl::document.eq(document))
+        .filter(keywords::dsl::document.eq(document.name.to_owned()))
         .filter(keywords::dsl::word.eq(word))
         .load(conn)?;
 
@@ -50,20 +57,18 @@ pub fn insert_word(
 
     // Insert the document if it isn’t already present in the database
     let doc: Vec<Document> = documents::dsl::documents
-        .filter(documents::dsl::name.eq(document))
+        .filter(documents::dsl::name.eq(document.name.to_owned()))
         .load(conn)?;
     if doc.is_empty() {
         diesel::insert_into(documents::dsl::documents)
-            .values(Document {
-                name: document.to_string(),
-            })
+            .values(document.to_owned())
             .execute(conn)?;
     }
 
     diesel::insert_into(keywords::dsl::keywords)
         .values((
             keywords::dsl::word.eq(word),
-            keywords::dsl::document.eq(document.to_string()),
+            keywords::dsl::document.eq(document.name),
         ))
         .execute(conn)?;
     Ok(())
@@ -100,24 +105,42 @@ pub fn keyword_list_docs(
 }
 
 use crate::server::RankedDoc;
-pub fn multiple_keywords(
+pub fn keywords_search(
     conn: &mut PgConnection,
     words: &[String],
 ) -> DbResult<Vec<RankedDoc>> {
-    use keywords::dsl;
-    let mut docs: HashMap<String, i32> = HashMap::new();
+    let mut docs: HashMap<Document, i32> = HashMap::new();
     for word in words {
-        let list = dsl::keywords
-            .filter(dsl::word.eq(word))
-            .select((dsl::document, dsl::occurrences))
-            .load::<(String, i32)>(conn)?;
+        let list = keywords::table
+            .left_join(
+                documents::table.on(keywords::document
+                    .eq(documents::name)
+                    .and(keywords::word.eq(word))),
+            )
+            .select((
+                documents::name.nullable(),
+                documents::title.nullable(),
+                keywords::occurrences,
+            ))
+            .load::<(Option<String>, Option<String>, i32)>(conn)?
+            .iter()
+            .map(|item| {
+                (
+                    Document {
+                        name: item.clone().0.unwrap(),
+                        title: item.clone().1.unwrap(),
+                    },
+                    item.2,
+                )
+            })
+            .collect::<Vec<(Document, i32)>>();
         for item in list {
             docs.entry(item.0)
                 .and_modify(|occ| *occ += item.1)
                 .or_insert(item.1);
         }
     }
-    let mut docs: Vec<(String, i32)> = docs
+    let mut docs: Vec<(Document, i32)> = docs
         .iter()
         .map(|(doc, occ)| (doc.to_owned(), occ.to_owned()))
         .collect();
@@ -126,7 +149,8 @@ pub fn multiple_keywords(
     Ok(docs
         .iter()
         .map(|k| RankedDoc {
-            doc: k.0.to_owned(),
+            doc: k.0.name.to_owned(),
+            title: k.0.title.to_owned(),
             hits: k.1.to_owned(),
         })
         .collect::<Vec<RankedDoc>>())
