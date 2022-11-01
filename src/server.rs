@@ -6,7 +6,7 @@ use rocket::serde::json::Json;
 use rocket::serde::{Deserialize, Serialize};
 use rocket::State;
 use scraper::{Html, Selector};
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::db::models::Document;
 use crate::parser::Glaff;
@@ -109,12 +109,14 @@ pub fn search_multiple_words(
     query: String,
     state: &State<ServerState>,
 ) -> ApiResponse<Json<Vec<RankedDoc>>> {
+    info!("Query \"{}\"", query);
     let conn = &mut get_connector!(state);
     let glaff = &state.glaff;
     let query = query
         .split_whitespace()
         .map(|s| parser::get_lemma_from_glaff(s.to_lowercase(), glaff))
         .collect::<Vec<String>>();
+    debug!("Normalized query: {:?}", query);
     json_val_or_error!(db::keywords_search(conn, &query))
 }
 
@@ -152,7 +154,9 @@ fn parse_html_title(document: &Html) -> ApiResponse<String> {
     };
     if let Some(title) = document.select(&selector).next() {
         let inner = title.inner_html();
-        Ok(html2text::from_read(inner.as_bytes(), inner.len()))
+        Ok(html2text::from_read(inner.as_bytes(), inner.len())
+            .trim()
+            .into())
     } else {
         api_error!(format!("Could not find title"))
     }

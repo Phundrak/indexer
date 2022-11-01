@@ -2,6 +2,7 @@ use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::PgConnection;
 use dotenvy::dotenv;
+use tracing::debug;
 
 use std::collections::HashMap;
 
@@ -124,16 +125,21 @@ pub fn keywords_search(
             ))
             .load::<(Option<String>, Option<String>, i32)>(conn)?
             .iter()
-            .map(|item| {
-                (
-                    Document {
-                        name: item.clone().0.unwrap(),
-                        title: item.clone().1.unwrap(),
-                    },
-                    item.2,
-                )
+            .filter_map(|item| match item.0 {
+                Some(_) => {
+                    let item = item.clone();
+                    Some((
+                        Document {
+                            name: item.0.unwrap(),
+                            title: item.1.unwrap(),
+                        },
+                        item.2,
+                    ))
+                }
+                None => None,
             })
             .collect::<Vec<(Document, i32)>>();
+        debug!("Documents for query {:?}: {:?}", words, list);
         for item in list {
             docs.entry(item.0)
                 .and_modify(|occ| *occ += item.1)

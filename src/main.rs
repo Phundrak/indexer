@@ -28,7 +28,7 @@ struct Opt {
 
 pub fn setup_loggin() {
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::DEBUG)
         .finish();
     tracing::subscriber::set_global_default(subscriber)
         .expect("Setting default subscriber failed");
