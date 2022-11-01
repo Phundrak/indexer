@@ -158,11 +158,11 @@ pub fn keywords_search(
 
 pub fn add_document(
     conn: &mut PgConnection,
-    document: &String,
+    document: Document,
 ) -> DbResult<()> {
     use documents::dsl;
     diesel::insert_into(dsl::documents)
-        .values(dsl::name.eq(document))
+        .values(document)
         .execute(conn)?;
     Ok(())
 }

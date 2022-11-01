@@ -8,6 +8,7 @@ use rocket::State;
 use scraper::{Html, Selector};
 use tracing::info;
 
+use crate::db::models::Document;
 use crate::parser::Glaff;
 use crate::{db, parser};
 pub struct ServerState {
@@ -117,45 +118,90 @@ pub fn search_multiple_words(
     json_val_or_error!(db::keywords_search(conn, &query))
 }
 
+async fn get_url(url: &String) -> ApiResponse<String> {
+    match reqwest::get(url).await {
+        Ok(val) => match val.text().await {
+            Ok(val) => Ok(val),
+            Err(e) => Err(Custom(Status::InternalServerError, e.to_string())),
+        },
+        Err(e) => Err(Custom(Status::InternalServerError, e.to_string())),
+    }
+}
+
+fn parse_html_keywords(
+    conn: &mut PgConnection,
+    document: &Html,
+    url: &String,
+    state: &State<ServerState>,
+) -> ApiResponse<()> {
+    let selector_keywords = Selector::parse("meta[name=keywords]").unwrap();
+    for element in document.select(&selector_keywords) {
+        parse_and_insert(element.inner_html(), url, conn, state)?;
+    }
+    info!("== Parsed keywords in {}", &url);
+    Ok(())
+}
+
+fn parse_html_title(document: &Html) -> ApiResponse<String> {
+    info!("== Parsing title");
+    let selector = match Selector::parse("title") {
+        Ok(val) => val,
+        Err(_) => {
+            return api_error!("Failed to parse selector".to_string());
+        }
+    };
+    if let Some(title) = document.select(&selector).next() {
+        let inner = title.inner_html();
+        Ok(html2text::from_read(inner.as_bytes(), inner.len()))
+    } else {
+        api_error!(format!("Could not find title"))
+    }
+}
+
+fn parse_html_body(
+    conn: &mut PgConnection,
+    document: &Html,
+    url: &String,
+    state: &State<ServerState>,
+) -> ApiResponse<()> {
+    let selector_body = Selector::parse("body").unwrap();
+    for element in document.select(&selector_body) {
+        let text = html2text::from_read(
+            element.inner_html().as_bytes(),
+            element.inner_html().len(),
+        );
+        parse_and_insert(text, url, conn, state)?;
+    }
+    Ok(())
+}
+
 #[post("/doc?<url>")]
 pub async fn index_url(
     url: String,
     state: &State<ServerState>,
 ) -> ApiResponse<()> {
     info!("Indexing {}", &url);
-    let body = match reqwest::get(&url).await {
-        Ok(val) => match val.text().await {
-            Ok(val) => val,
-            Err(e) => {
-                return Err(Custom(Status::InternalServerError, e.to_string()))
-            }
-        },
-        Err(e) => {
-            return Err(Custom(Status::InternalServerError, e.to_string()))
-        }
-    };
-    info!("Downloaded {}", &url);
-    let document = Html::parse_document(&body);
-    let selector = Selector::parse("meta[name=keywords]").unwrap();
+    info!("== Downloading {}", &url);
+    let body = get_url(&url).await?;
+    info!("== Downloaded {}", &url);
     let conn = &mut get_connector!(state);
+    let document = Html::parse_document(&body);
+    let title = parse_html_title(&document)?;
+    info!("== Inserting {} in database", &url);
     ok_or_err!(
-        db::add_document(conn, &url),
+        db::add_document(
+            conn,
+            Document {
+                name: url.to_owned(),
+                title
+            }
+        ),
         "{}: Failed to insert URL {} as a document",
         &url
     );
-    for element in document.select(&selector) {
-        parse_and_insert(element.inner_html(), &url, conn, state)?;
-    }
-    info!("Parsed keywords in {}", &url);
-    let selector = Selector::parse("body").unwrap();
-    for element in document.select(&selector) {
-        let text = html2text::from_read(
-            element.inner_html().as_bytes(),
-            element.inner_html().len(),
-        );
-        parse_and_insert(text, &url, conn, state)?;
-    }
-    info!("Parsed {}", &url);
+    parse_html_keywords(conn, &document, &url, state)?;
+    parse_html_body(conn, &document, &url, state)?;
+    info!("Indexed {}", &url);
     Ok(())
 }
 
