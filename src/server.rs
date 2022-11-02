@@ -93,19 +93,8 @@ fn parse_and_insert(
     Ok(())
 }
 
-#[get("/keyword?<keyword>")]
-pub fn search_keyword(
-    keyword: String,
-    state: &State<ServerState>,
-) -> ApiResponse<Json<Vec<String>>> {
-    let conn = &mut get_connector!(state);
-    let keyword =
-        parser::get_lemma_from_glaff(keyword.to_lowercase(), &state.glaff);
-    json_val_or_error!(db::keyword_list_docs(conn, &keyword))
-}
-
 #[get("/search?<query>")]
-pub fn search_multiple_words(
+pub fn search_query(
     query: String,
     state: &State<ServerState>,
 ) -> ApiResponse<Json<Vec<RankedDoc>>> {

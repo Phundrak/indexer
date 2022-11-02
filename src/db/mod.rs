@@ -90,21 +90,6 @@ pub fn doc_list_keywords(
     Ok(keywords)
 }
 
-pub fn keyword_list_docs(
-    conn: &mut PgConnection,
-    word: &String,
-) -> DbResult<Vec<String>> {
-    use keywords::dsl;
-    let mut docs = dsl::keywords
-        .filter(dsl::word.eq(word))
-        .select((dsl::document, dsl::occurrences))
-        .load::<(String, i32)>(conn)?;
-    docs.sort_by_key(|k| k.1);
-    docs.reverse();
-    let docs: Vec<String> = docs.iter().map(|s| s.0.clone()).collect();
-    Ok(docs)
-}
-
 use crate::server::RankedDoc;
 pub fn keywords_search(
     conn: &mut PgConnection,

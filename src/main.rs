@@ -63,8 +63,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .mount(
             "/",
             routes![
-                server::search_keyword, // /keyword?keyword=:keyword GET
-                server::search_multiple_words, // /search?query=:query GET
+                server::search_query,   // /search?query=:query GET
                 server::list_docs,      // /doc GET
                 server::index_url,      // /doc?url=:url             POST
                 server::document_list_keywords, // /doc?doc=:id              GET
