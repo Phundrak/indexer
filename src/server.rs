@@ -99,6 +99,9 @@ pub fn search_query(
     state: &State<ServerState>,
 ) -> ApiResponse<Json<Vec<RankedDoc>>> {
     info!("Query \"{}\"", query);
+    if query.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
     let conn = &mut get_connector!(state);
     let glaff = &state.glaff;
     let query = query
