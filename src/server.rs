@@ -203,6 +203,7 @@ pub async fn index_url(
 
 #[get("/doc")]
 pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
+    info!("Listing documents");
     let conn = &mut get_connector!(state);
     json_val_or_error!(db::list_documents(conn))
 }
@@ -212,6 +213,7 @@ pub fn document_list_keywords(
     doc: String,
     state: &State<ServerState>,
 ) -> ApiResponse<Json<Vec<String>>> {
+    info!("Getting document \"{}\"", doc);
     let conn = &mut get_connector!(state);
     json_val_or_error!(db::doc_list_keywords(conn, &doc))
 }
@@ -221,9 +223,13 @@ pub fn delete_document(
     id: String,
     state: &State<ServerState>,
 ) -> ApiResponse<()> {
+    info!("Deleting document \"{}\"", id);
     let conn = &mut get_connector!(state);
     match db::delete_document(conn, &id) {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            info!("Deleted document \"{}\"", id);
+            Ok(())
+        }
         Err(e) => api_error!(e.to_string()),
     }
 }
