@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::path::PathBuf;
 
+use rayon::prelude::*;
+
 static PUNCTUATION: &[char] = &[
     ' ', '(', ')', '*', ',', '.', '/', ';', '[', '\'', '\\', '\n',
     ']', '^', '_', '{', '}', ' ', '«', '»', '’', '…', ' ', '|', '↑',
@@ -84,6 +86,7 @@ pub fn get_keywords_from_text(
     lemmes: &Option<HashMap<String, String>>,
 ) -> Vec<String> {
     text.split(PUNCTUATION)
+        .par_bridge()
         .filter_map(|e| {
             let word = get_lemma_from_glaff(e.to_lowercase(), lemmes);
             if !is_short_word(&word) && !is_stopword(&word, stop_words) {
