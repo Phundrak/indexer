@@ -13,7 +13,7 @@ use rocket::http::Method;
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 
 mod db;
-mod parser;
+mod kwparser;
 mod server;
 
 #[derive(StructOpt, Debug)]
@@ -41,9 +41,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
 
     info!("Reading stopwords");
-    let stopwords = parser::get_stopwords(opt.stop_words);
+    let stopwords = kwparser::get_stopwords(opt.stop_words);
     info!("Reading GLÀFF");
-    let glaff = parser::parse_glaff(opt.glaff);
+    let glaff = kwparser::parse_glaff(opt.glaff);
 
     let allowed_origins = AllowedOrigins::some_regex(&[".*"]);
     let cors = rocket_cors::CorsOptions {

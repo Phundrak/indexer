@@ -2,15 +2,14 @@ use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
 use rocket::http::Status;
 use rocket::response::status::Custom;
-use rocket::serde::json::Json;
-use rocket::serde::{Deserialize, Serialize};
+use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
 use scraper::{Html, Selector};
 use tracing::{debug, info};
 
-use crate::db::models::Document;
-use crate::parser::Glaff;
-use crate::{db, parser};
+use crate::db::{self, models::Document};
+use crate::kwparser::{self, Glaff};
+
 pub struct ServerState {
     pub pool: Pool<ConnectionManager<PgConnection>>,
     pub stopwords: Vec<String>,
@@ -72,11 +71,8 @@ fn parse_and_insert(
     conn: &mut PgConnection,
     state: &State<ServerState>,
 ) -> ApiResponse<()> {
-    let keywords = crate::parser::get_keywords_from_text(
-        text,
-        &state.stopwords,
-        &state.glaff,
-    );
+    let keywords =
+        kwparser::get_keywords_from_text(text, &state.stopwords, &state.glaff);
     let document = match db::get_document(conn, url) {
         Ok(val) => val,
         Err(e) => {
@@ -106,7 +102,7 @@ pub fn search_query(
     let glaff = &state.glaff;
     let query = query
         .split_whitespace()
-        .map(|s| parser::get_lemma_from_glaff(s.to_lowercase(), glaff))
+        .map(|s| kwparser::get_lemma_from_glaff(s.to_lowercase(), glaff))
         .collect::<Vec<String>>();
     debug!("Normalized query: {:?}", query);
     json_val_or_error!(db::keywords_search(conn, &query))
