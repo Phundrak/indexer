@@ -8,17 +8,14 @@ Use diesel.rs to link Indexer to a PostgreSQL database.
 * DONE Implement a RESTful web server around Indexer
 CLOSED: [2022-10-31 Mon 06:04]
 Use rocket.rs to server a REST API frontends can call.
-* TODO Index local files [0/2]
-** TODO Put them in a storage directory once parsed
-Can be done with Appwrite
-** TODO Make them available for download
-* TODO Make indexing files only available to an admin account
-* TODO Give keywords a heavier weight
-Give a default weight modifier of 2
 * TODO Get description of the file [0/2]
 ** TODO Extract native description of the file
 ** TODO Create a custom description if no native description exists
 Get the first paragraph, cut it at 280 characters max.
+* TODO Index local files [0/2]
+** TODO Put them in a storage directory once parsed
+Can be done with Appwrite
+** TODO Make them available for download
 * TODO Support different types of files [1/5]
 ** DONE HTML
 CLOSED: [2022-11-14 Mon 13:06]
@@ -27,6 +24,9 @@ CLOSED: [2022-11-14 Mon 13:06]
 ** TODO Pandoc
 Use crate [[https://crates.io/crates/pandoc][pandoc]].
 ** TODO FFMPEG
+* TODO Make indexing files only available to an admin account
+* TODO Give keywords a heavier weight
+Give a default weight modifier of 2
 * TODO Refactor to separate server, keyword parser, and file to text parser
 * TODO Try to handle typos
 Inspiration:
