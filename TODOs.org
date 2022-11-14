@@ -19,11 +19,14 @@ Give a default weight modifier of 2
 ** TODO Extract native description of the file
 ** TODO Create a custom description if no native description exists
 Get the first paragraph, cut it at 280 characters max.
-* TODO Support different types of files [1/3]
+* TODO Support different types of files [1/5]
 ** DONE HTML
 CLOSED: [2022-11-14 Mon 13:06]
 ** TODO PDF
 ** TODO TXT
+** TODO Pandoc
+Use crate [[https://crates.io/crates/pandoc][pandoc]].
+** TODO FFMPEG
 * TODO Refactor to separate server, keyword parser, and file to text parser
 * TODO Try to handle typos
 Inspiration:
