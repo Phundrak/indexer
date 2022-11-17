@@ -4,12 +4,6 @@ use std::path::PathBuf;
 
 use rayon::prelude::*;
 
-static PUNCTUATION: &[char] = &[
-    ' ', '(', ')', '*', ',', '.', '/', ';', '[', '\'', '\\', '\n',
-    ']', '^', '_', '{', '}', ' ', '«', '»', '’', '…', ' ', '|', '↑',
-    '─', '┼', '*', '│', ':', '┴', '┬', '↓', '%', '→'
-];
-
 /// Get list of stopwords from a file.
 ///
 /// The file pointed at by `path` must contain one stopword per line.
@@ -85,7 +79,7 @@ pub fn get_keywords_from_text(
     stop_words: &[String],
     lemmes: &Option<HashMap<String, String>>,
 ) -> Vec<String> {
-    text.split(PUNCTUATION)
+    text.split(|c| !char::is_alphanumeric(c))
         .par_bridge()
         .filter_map(|e| {
             let word = get_lemma_from_glaff(e.to_lowercase(), lemmes);
