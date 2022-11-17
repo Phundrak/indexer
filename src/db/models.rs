@@ -4,6 +4,24 @@ use rocket::serde::{Deserialize, Serialize};
 
 #[derive(
     Debug,
+    Serialize,
+    Deserialize,
+    Clone,
+    PartialEq,
+    Eq,
+    Copy,
+    diesel_derive_enum::DbEnum,
+    Hash,
+)]
+#[DieselTypePath = "crate::db::schema::sql_types::Documenttype"]
+#[serde(crate = "rocket::serde")]
+pub enum DocumentType {
+    Online,
+    Offline,
+}
+
+#[derive(
+    Debug,
     Queryable,
     Insertable,
     Hash,
@@ -17,6 +35,8 @@ use rocket::serde::{Deserialize, Serialize};
 pub struct Document {
     pub name: String,
     pub title: String,
+    pub doctype: DocumentType,
+    pub description: String,
 }
 
 #[derive(Debug, Queryable, Insertable)]

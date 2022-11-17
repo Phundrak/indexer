@@ -10,7 +10,7 @@ use rayon::prelude::*;
 pub fn get_stopwords(path: PathBuf) -> Vec<String> {
     let content = read_to_string(path).unwrap();
     let words: Vec<String> =
-        content.split('\n').map(|e| e.to_string()).collect();
+        content.split('\n').map(std::string::ToString::to_string).collect();
     words
 }
 
@@ -18,9 +18,9 @@ pub type Glaff = HashMap<String, String>;
 
 /// Parse the GLÀFF
 ///
-/// Results in a HashMap containing on the first hand pretty much all
-/// words in the French language, and on the other hand its canonical
-/// form.
+/// Results in a `HashMap` containing on the first hand pretty much
+/// all words in the French language, and on the other hand its
+/// canonical form.
 ///
 /// If `path` is `None`, return nothing (useful when not dealing with
 /// French text)
@@ -62,6 +62,18 @@ fn is_stopword(word: &String, stop_words: &[String]) -> bool {
     stop_words.contains(word)
 }
 
+pub fn split_keywords<T>(keywords: &T) -> Vec<String>
+where
+    T: ToString,
+{
+    keywords
+        .to_string()
+        .split(&[',', ' '])
+        .filter(|s| !s.is_empty())
+        .map(std::string::ToString::to_string)
+        .collect()
+}
+
 /// Determine if a word is a short word
 ///
 /// # Examples
@@ -75,7 +87,7 @@ fn is_short_word(word: &String) -> bool {
 }
 
 pub fn get_keywords_from_text(
-    text: String,
+    text: &str,
     stop_words: &[String],
     lemmes: &Option<HashMap<String, String>>,
 ) -> Vec<String> {

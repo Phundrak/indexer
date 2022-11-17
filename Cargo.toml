@@ -10,13 +10,21 @@ structopt = "0.3"
 csv = "1.1"
 
 # Database
-diesel = { version = "2.0.0", features = ["postgres", "extras"] }
+diesel = { version = "2.0.2", features = ["postgres", "extras"] }
+diesel-derive-enum = { version = "2.0.0-rc.0", features = ["postgres"] }
 dotenvy = "0.15"
 
 # Web server
 rocket = { version = "0.5.0-rc.2", features = ["json"] }
 # rocket_cors = "0.6.0-alpha1"
 rocket_cors = { git = "https://github.com/lawliet89/rocket_cors", branch = "master" }
+
+# File type inference
+infer = "0.11.0"
+
+# Documents parsing
+pandoc = "0.8.10"
+poppler-rs = "0.20.0"
 
 # HTML request and parsing
 reqwest = "0.11.12"
@@ -29,3 +37,6 @@ tracing-subscriber = "0.3.16"
 
 # parallelism
 rayon = "1.5.3"
+
+# better error output
+color-eyre = "0.6.2"

@@ -4,12 +4,14 @@ use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
-use scraper::{Html, Selector};
 use tracing::{debug, info};
 
-use crate::db::{self, models::Document};
+use crate::db;
+use crate::db::models::Document;
+use crate::fileparser::get_content;
 use crate::kwparser::{self, Glaff};
 
+#[allow(clippy::module_name_repetitions)]
 pub struct ServerState {
     pub pool: Pool<ConnectionManager<PgConnection>>,
     pub stopwords: Vec<String>,
@@ -26,7 +28,7 @@ pub struct RankedDoc {
 
 macro_rules! api_error {
     ($message:expr) => {
-        Err(Custom(Status::InternalServerError, $message))
+        Custom(Status::InternalServerError, $message)
     };
 }
 
@@ -35,20 +37,9 @@ macro_rules! get_connector {
         match $db.pool.get() {
             Ok(val) => val,
             Err(_) => {
-                return api_error!(
+                return Err(api_error!(
                     "Failed to connect to the database".to_owned()
-                );
-            }
-        }
-    };
-}
-
-macro_rules! ok_or_err {
-    ($dbrun:expr,$message:expr,$($args:expr),+) => {
-        match $dbrun {
-            Ok(_) => (),
-            Err(e) => {
-                return api_error!(format!($message, e, $($args),+));
+                ));
             }
         }
     };
@@ -65,33 +56,81 @@ macro_rules! json_val_or_error {
 
 pub type ApiResponse<T> = Result<T, Custom<String>>;
 
-fn parse_and_insert(
-    text: String,
-    url: &String,
-    conn: &mut PgConnection,
+async fn fetch_content(url: &String) -> ApiResponse<Vec<u8>> {
+    match reqwest::get(url).await {
+        Ok(val) => match val.bytes().await {
+            Ok(val) => Ok(val.into()),
+            Err(e) => Err(Custom(
+                Status::NotAcceptable,
+                format!("Cannot retrieve bytes from requested document; {}", e),
+            )),
+        },
+        Err(e) => Err(Custom(Status::InternalServerError, e.to_string())),
+    }
+}
+
+// Inserting into the database ////////////////////////////////////////////////
+
+// TODO: Check if the URL is already in the database
+#[post("/doc?<url>")]
+pub async fn index_url(
+    url: String,
     state: &State<ServerState>,
 ) -> ApiResponse<()> {
-    let keywords =
-        kwparser::get_keywords_from_text(text, &state.stopwords, &state.glaff);
-    let document = match db::get_document(conn, url) {
-        Ok(val) => val,
-        Err(e) => {
-            return api_error!(e.to_string());
-        }
+    info!("Indexing {}", &url);
+    info!("== Downloading {}", &url);
+    let document = fetch_content(&url).await?;
+    info!("== Downloaded {}", &url);
+    let stop_words = &state.stopwords;
+    let glaff = &state.glaff;
+    let content = get_content(&document, stop_words, glaff)
+        .map_err(|e| Custom(Status::NotAcceptable, format!("{:?}", e)))?;
+    debug!("{:?}", content);
+    info!("== Downloaded {}", &url);
+    let conn = &mut state.pool.get().map_err(|e| {
+        api_error!(format!("Failed to connect to the database: {}", e))
+    })?;
+    info!("== Inserting {} in database", &url);
+
+    let doc = Document {
+        title: content.title.clone(),
+        name: url.clone(),
+        doctype: db::models::DocumentType::Online,
+        description: content.description.clone()
     };
-    for keyword in keywords {
-        ok_or_err!(
-            db::insert_word(conn, &keyword, document.to_owned()),
-            "{}: Could not insert keyword \"{}\"",
-            keyword
+    db::add_document(conn, &doc, &content).map_err(|e| {
+        Custom(
+            Status::InternalServerError,
+            format!("Failed to insert URL {} as a document: {}", url, e),
         )
-    }
+    })?;
+    info!("Indexed {}", &url);
     Ok(())
 }
 
+// Deleting from the database /////////////////////////////////////////////////
+
+#[delete("/doc?<id>")]
+pub fn delete_document(
+    id: &str,
+    state: &State<ServerState>,
+) -> ApiResponse<()> {
+    info!("Deleting document \"{}\"", id);
+    let conn = &mut get_connector!(state);
+    match db::delete_document(conn, id) {
+        Ok(_) => {
+            info!("Deleted document \"{}\"", id);
+            Ok(())
+        }
+        Err(e) => Err(api_error!(e.to_string())),
+    }
+}
+
+// Reading the database ///////////////////////////////////////////////////////
+
 #[get("/search?<query>")]
 pub fn search_query(
-    query: String,
+    query: &str,
     state: &State<ServerState>,
 ) -> ApiResponse<Json<Vec<RankedDoc>>> {
     info!("Query \"{}\"", query);
@@ -108,95 +147,6 @@ pub fn search_query(
     json_val_or_error!(db::keywords_search(conn, &query))
 }
 
-async fn get_url(url: &String) -> ApiResponse<String> {
-    match reqwest::get(url).await {
-        Ok(val) => match val.text().await {
-            Ok(val) => Ok(val),
-            Err(e) => Err(Custom(Status::InternalServerError, e.to_string())),
-        },
-        Err(e) => Err(Custom(Status::InternalServerError, e.to_string())),
-    }
-}
-
-fn parse_html_keywords(
-    conn: &mut PgConnection,
-    document: &Html,
-    url: &String,
-    state: &State<ServerState>,
-) -> ApiResponse<()> {
-    let selector_keywords = Selector::parse("meta[name=keywords]").unwrap();
-    for element in document.select(&selector_keywords) {
-        parse_and_insert(element.inner_html(), url, conn, state)?;
-    }
-    info!("== Parsed keywords in {}", &url);
-    Ok(())
-}
-
-fn parse_html_title(document: &Html) -> ApiResponse<String> {
-    info!("== Parsing title");
-    let selector = match Selector::parse("title") {
-        Ok(val) => val,
-        Err(_) => {
-            return api_error!("Failed to parse selector".to_string());
-        }
-    };
-    if let Some(title) = document.select(&selector).next() {
-        let inner = title.inner_html();
-        Ok(html2text::from_read(inner.as_bytes(), inner.len())
-            .trim()
-            .into())
-    } else {
-        api_error!(format!("Could not find title"))
-    }
-}
-
-fn parse_html_body(
-    conn: &mut PgConnection,
-    document: &Html,
-    url: &String,
-    state: &State<ServerState>,
-) -> ApiResponse<()> {
-    let selector_body = Selector::parse("body").unwrap();
-    for element in document.select(&selector_body) {
-        let text = html2text::from_read(
-            element.inner_html().as_bytes(),
-            element.inner_html().len(),
-        );
-        parse_and_insert(text, url, conn, state)?;
-    }
-    Ok(())
-}
-
-#[post("/doc?<url>")]
-pub async fn index_url(
-    url: String,
-    state: &State<ServerState>,
-) -> ApiResponse<()> {
-    info!("Indexing {}", &url);
-    info!("== Downloading {}", &url);
-    let body = get_url(&url).await?;
-    info!("== Downloaded {}", &url);
-    let conn = &mut get_connector!(state);
-    let document = Html::parse_document(&body);
-    let title = parse_html_title(&document)?;
-    info!("== Inserting {} in database", &url);
-    ok_or_err!(
-        db::add_document(
-            conn,
-            Document {
-                name: url.to_owned(),
-                title
-            }
-        ),
-        "{}: Failed to insert URL {} as a document",
-        &url
-    );
-    parse_html_keywords(conn, &document, &url, state)?;
-    parse_html_body(conn, &document, &url, state)?;
-    info!("Indexed {}", &url);
-    Ok(())
-}
-
 #[get("/doc")]
 pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
     info!("Listing documents");
@@ -204,28 +154,12 @@ pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
     json_val_or_error!(db::list_documents(conn))
 }
 
-#[get("/doc?<doc>")]
+#[get("/doc?<id>")]
 pub fn document_list_keywords(
-    doc: String,
+    id: &str,
     state: &State<ServerState>,
 ) -> ApiResponse<Json<Vec<String>>> {
-    info!("Getting document \"{}\"", doc);
+    info!("Getting document \"{}\"", id);
     let conn = &mut get_connector!(state);
-    json_val_or_error!(db::doc_list_keywords(conn, &doc))
-}
-
-#[delete("/doc?<id>")]
-pub fn delete_document(
-    id: String,
-    state: &State<ServerState>,
-) -> ApiResponse<()> {
-    info!("Deleting document \"{}\"", id);
-    let conn = &mut get_connector!(state);
-    match db::delete_document(conn, &id) {
-        Ok(_) => {
-            info!("Deleted document \"{}\"", id);
-            Ok(())
-        }
-        Err(e) => api_error!(e.to_string()),
-    }
+    json_val_or_error!(db::doc_list_keywords(conn, id))
 }

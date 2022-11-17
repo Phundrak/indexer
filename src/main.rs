@@ -1,3 +1,6 @@
+#![warn(clippy::style, clippy::pedantic)]
+#![allow(clippy::no_effect_underscore_binding)]
+
 #[macro_use]
 extern crate rocket;
 
@@ -15,6 +18,7 @@ use rocket_cors::{AllowedHeaders, AllowedOrigins};
 mod db;
 mod kwparser;
 mod server;
+mod fileparser;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "indexer")]
@@ -59,6 +63,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     .to_cors()?;
 
     info!("Launching server");
+    #[allow(clippy::let_underscore_drop)]
     let _ = rocket::build()
         .mount(
             "/",
