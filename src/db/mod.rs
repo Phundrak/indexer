@@ -78,18 +78,24 @@ pub fn insert_word(
     Ok(())
 }
 
+use crate::server::RankedKeyword;
 pub fn doc_list_keywords(
     conn: &mut PgConnection,
     document: &str,
-) -> DatabaseResult<Vec<String>> {
+) -> DatabaseResult<Vec<RankedKeyword>> {
     use keywords::dsl;
-    let mut keywords: Vec<(String, i32)> = dsl::keywords
+    let mut keywords: Vec<RankedKeyword> = dsl::keywords
         .filter(dsl::document.eq(document))
         .select((dsl::word, dsl::occurrences))
-        .load(conn)?;
-    keywords.sort_by_key(|k| k.1);
+        .load::<(String, i32)>(conn)?
+        .iter()
+        .map(|k| RankedKeyword {
+            keyword: k.0.clone(),
+            rank: k.1,
+        })
+        .collect();
+    keywords.sort_by_key(|k| k.rank);
     keywords.reverse();
-    let keywords: Vec<String> = keywords.iter().map(|k| k.0.clone()).collect();
     Ok(keywords)
 }
 
@@ -130,6 +136,7 @@ pub fn keywords_search(
         .map(|k| RankedDoc {
             doc: k.0.name.clone(),
             title: k.0.title.clone(),
+            description: k.0.description.clone(),
             hits: k.1.to_owned(),
         })
         .collect::<Vec<RankedDoc>>())

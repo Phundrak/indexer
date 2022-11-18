@@ -23,7 +23,15 @@ pub struct ServerState {
 pub struct RankedDoc {
     pub doc: String,
     pub title: String,
+    pub description: String,
     pub hits: i32,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct RankedKeyword {
+    pub keyword: String,
+    pub rank: i32,
 }
 
 macro_rules! api_error {
@@ -158,7 +166,7 @@ pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
 pub fn document_list_keywords(
     id: &str,
     state: &State<ServerState>,
-) -> ApiResponse<Json<Vec<String>>> {
+) -> ApiResponse<Json<Vec<RankedKeyword>>> {
     info!("Getting document \"{}\"", id);
     let conn = &mut get_connector!(state);
     json_val_or_error!(db::doc_list_keywords(conn, id))
