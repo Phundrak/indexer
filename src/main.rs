@@ -6,8 +6,7 @@ extern crate rocket;
 
 use std::error::Error;
 
-use tracing::{info, Level};
-use tracing_subscriber::FmtSubscriber;
+use tracing::info;
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -30,14 +29,6 @@ struct Opt {
     glaff: Option<PathBuf>,
 }
 
-pub fn setup_loggin() {
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::DEBUG)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("Setting default subscriber failed");
-}
-
 fn make_cors(allowed_origins: AllOrSome<Origins>) -> Result<Cors, rocket_cors::Error> {
     rocket_cors::CorsOptions {
         allowed_origins,
@@ -54,7 +45,7 @@ fn make_cors(allowed_origins: AllOrSome<Origins>) -> Result<Cors, rocket_cors::E
 
 #[rocket::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    setup_loggin();
+    indexer::setup_logging();
 
     let opt = Opt::from_args();
 

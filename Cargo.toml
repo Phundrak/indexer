@@ -39,3 +39,6 @@ rayon = "1.5.3"
 
 # better error output
 color-eyre = "0.6.2"
+
+# Encode and decode bincode
+bincode = "1.3.3"
