@@ -1,9 +1,10 @@
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
+use rocket::data::ToByteUnit;
 use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::serde::{json::Json, Deserialize, Serialize};
-use rocket::State;
+use rocket::{Data, State};
 use tracing::{debug, info};
 
 use crate::db;
@@ -16,6 +17,9 @@ pub struct ServerState {
     pub pool: Pool<ConnectionManager<PgConnection>>,
     pub stopwords: Vec<String>,
     pub glaff: Option<Glaff>,
+    pub appwrite_endpoint: String,
+    pub appwrite_key: String,
+    pub appwrite_bucket: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -79,6 +83,37 @@ async fn fetch_content(url: &String) -> ApiResponse<Vec<u8>> {
 
 // Inserting into the database ////////////////////////////////////////////////
 
+fn index_file(
+    state: &State<ServerState>,
+    file: &[u8],
+    identifier: &str,
+) -> ApiResponse<()> {
+    let stop_words = &state.stopwords;
+    let glaff = &state.glaff;
+    let content = get_content(file, stop_words, glaff)
+        .map_err(|e| Custom(Status::NotAcceptable, format!("{:?}", e)))?;
+    debug!("{:?}", content);
+    let conn = &mut state.pool.get().map_err(|e| {
+        api_error!(format!("Failed to connect to the database: {}", e))
+    })?;
+    info!("== Inserting {} in database", &identifier);
+
+    let doc = Document {
+        title: content.title.clone(),
+        name: identifier.to_string(),
+        doctype: db::models::DocumentType::Online,
+        description: content.description.clone(),
+    };
+    db::add_document(conn, &doc, &content).map_err(|e| {
+        Custom(
+            Status::InternalServerError,
+            format!("Failed to insert URL {} as a document: {}", identifier, e),
+        )
+    })?;
+    info!("Indexed {}", identifier);
+    Ok(())
+}
+
 // TODO: Check if the URL is already in the database
 #[post("/doc?<url>")]
 pub async fn index_url(
@@ -89,30 +124,30 @@ pub async fn index_url(
     info!("== Downloading {}", &url);
     let document = fetch_content(&url).await?;
     info!("== Downloaded {}", &url);
-    let stop_words = &state.stopwords;
-    let glaff = &state.glaff;
-    let content = get_content(&document, stop_words, glaff)
-        .map_err(|e| Custom(Status::NotAcceptable, format!("{:?}", e)))?;
-    debug!("{:?}", content);
-    info!("== Downloaded {}", &url);
-    let conn = &mut state.pool.get().map_err(|e| {
-        api_error!(format!("Failed to connect to the database: {}", e))
-    })?;
-    info!("== Inserting {} in database", &url);
+    index_file(state, &document, url.as_str())?;
+    Ok(())
+}
 
-    let doc = Document {
-        title: content.title.clone(),
-        name: url.clone(),
-        doctype: db::models::DocumentType::Online,
-        description: content.description.clone()
+#[post("/doc", format = "any", data = "<file>")]
+pub async fn index_upload(
+    state: &State<ServerState>,
+    file: Data<'_>,
+) -> ApiResponse<()> {
+    use sha256::digest;
+    let file = file
+        .open(30.mebibytes())
+        .into_bytes()
+        .await
+        .map_err(|e| api_error!(e.to_string()))?;
+    let file = if file.is_complete() {
+        file.into_inner()
+    } else {
+        return Err(api_error!("Remaining bytes in stream".into()));
     };
-    db::add_document(conn, &doc, &content).map_err(|e| {
-        Custom(
-            Status::InternalServerError,
-            format!("Failed to insert URL {} as a document: {}", url, e),
-        )
-    })?;
-    info!("Indexed {}", &url);
+    let id = digest(&file as &[u8]);
+    debug!("Uploaded file bytes: {:?}", file);
+    // TODO upload file to Appwrite
+    index_file(state, &file as &[u8], &id)?;
     Ok(())
 }
 

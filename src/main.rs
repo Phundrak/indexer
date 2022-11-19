@@ -73,6 +73,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 server::index_url,      // /doc?url=:url             POST
                 server::document_list_keywords, // /doc?doc=:id              GET
                 server::delete_document, // /doc?id=:id                      DELETE
+                server::index_upload,   // /doc + binary file
             ],
         )
         .attach(cors)
