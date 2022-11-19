@@ -23,9 +23,11 @@ mod fileparser;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "indexer")]
 struct Opt {
+    /// Path to a list of stop words to ignore
     #[structopt(short = "s", long, parse(from_os_str))]
     stop_words: PathBuf,
 
+    /// Path to the CSV version of the GLÀFF (optional)
     #[structopt(short = "g", long, parse(from_os_str))]
     glaff: Option<PathBuf>,
 }
