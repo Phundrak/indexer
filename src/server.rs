@@ -162,7 +162,7 @@ pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
     json_val_or_error!(db::list_documents(conn))
 }
 
-#[get("/doc?<id>")]
+#[get("/doc/<id>")]
 pub fn document_list_keywords(
     id: &str,
     state: &State<ServerState>,

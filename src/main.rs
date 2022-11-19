@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 use rocket::http::Method;
-use rocket_cors::{AllowedHeaders, AllowedOrigins};
+use rocket_cors::{AllowedHeaders, AllowedOrigins, AllOrSome, Origins, Cors};
 
 mod db;
 mod kwparser;
@@ -38,6 +38,20 @@ pub fn setup_loggin() {
         .expect("Setting default subscriber failed");
 }
 
+fn make_cors(allowed_origins: AllOrSome<Origins>) -> Result<Cors, rocket_cors::Error> {
+    rocket_cors::CorsOptions {
+        allowed_origins,
+        allowed_methods: vec![Method::Get, Method::Post, Method::Delete]
+            .into_iter()
+            .map(From::from)
+            .collect(),
+        allowed_headers: AllowedHeaders::some(&["Authorization", "Accept"]),
+        allow_credentials: true,
+        ..Default::default()
+    }
+    .to_cors()
+}
+
 #[rocket::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     setup_loggin();
@@ -50,17 +64,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let glaff = kwparser::parse_glaff(opt.glaff);
 
     let allowed_origins = AllowedOrigins::some_regex(&[".*"]);
-    let cors = rocket_cors::CorsOptions {
-        allowed_origins,
-        allowed_methods: vec![Method::Get, Method::Post, Method::Delete]
-            .into_iter()
-            .map(From::from)
-            .collect(),
-        allowed_headers: AllowedHeaders::some(&["Authorization", "Accept"]),
-        allow_credentials: true,
-        ..Default::default()
-    }
-    .to_cors()?;
+    let cors = make_cors(allowed_origins)?;
 
     info!("Launching server");
     #[allow(clippy::let_underscore_drop)]
@@ -68,11 +72,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .mount(
             "/",
             routes![
-                server::search_query,   // /search?query=:query GET
-                server::list_docs,      // /doc GET
-                server::index_url,      // /doc?url=:url             POST
-                server::document_list_keywords, // /doc?doc=:id              GET
-                server::delete_document, // /doc?id=:id                      DELETE
+                // POST
+                server::index_url,      // /doc?url=:url
+                // DELETE
+                server::delete_document, // /doc?id=:id
+                // GET
+                server::search_query,           // /search?query=:query
+                server::list_docs,              // /doc
+                server::document_list_keywords, // /doc/:id
             ],
         )
         .attach(cors)
