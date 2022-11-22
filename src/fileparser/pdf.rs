@@ -45,6 +45,17 @@ fn get_subject(doc: &Document) -> Option<String> {
     doc.subject().map(|e| e.to_string())
 }
 
+/// Parse a PDF file
+///
+/// Receive a PDF file’s content raw, extract from it its title,
+/// keywords, subject, and text.
+///
+/// # Errors
+///
+/// If any error occurs when parsing the PDF, return it to the caller
+/// function. For more information, see [`PdfParsingError`].
+///
+/// [`PdfParsingError`]: ./struct.PdfParsingError.html
 pub fn parse(doc: &[u8]) -> ParsingResult {
     info!("== PDF: Parsing document");
     let doc = poppler::Document::from_data(doc, None).map_err(|e| {

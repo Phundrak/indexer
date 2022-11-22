@@ -7,46 +7,42 @@ use rayon::prelude::*;
 /// Get list of stopwords from a file.
 ///
 /// The file pointed at by `path` must contain one stopword per line.
+///
+/// # Panics
+///
+/// If the program cannot read the file containing stop words, the
+/// program will panic.
+#[must_use]
 pub fn get_stopwords(path: PathBuf) -> Vec<String> {
     let content = read_to_string(path).unwrap();
-    let words: Vec<String> =
-        content.split('\n').map(std::string::ToString::to_string).collect();
+    let words: Vec<String> = content
+        .split('\n')
+        .map(std::string::ToString::to_string)
+        .collect();
     words
 }
 
 pub type Glaff = HashMap<String, String>;
 
-/// Parse the GLÀFF
+/// Read the GLÀFF in its binary version
 ///
-/// Results in a `HashMap` containing on the first hand pretty much
-/// all words in the French language, and on the other hand its
-/// canonical form.
+/// # Panics
 ///
-/// If `path` is `None`, return nothing (useful when not dealing with
-/// French text)
-pub fn parse_glaff(path: Option<PathBuf>) -> Option<Glaff> {
+/// The program may panic if `path` is not readable or if the
+/// deserialization fails.
+#[must_use]
+pub fn read_glaff(path: Option<PathBuf>) -> Option<Glaff> {
     match path {
         None => None,
-        Some(file) => {
-            let mut reader = csv::ReaderBuilder::new()
-                .delimiter(b'|')
-                .has_headers(false)
-                .from_path(file)
-                .unwrap();
-            let mut lemme: HashMap<String, String> = HashMap::new();
-            for result in reader.records() {
-                let record = result.unwrap();
-                lemme.insert(
-                    record.get(0).unwrap().to_string(),
-                    record.get(2).unwrap().to_string(),
-                );
-            }
-            Some(lemme)
+        Some(p) => {
+            let data = std::fs::read(p).unwrap();
+            Some(bincode::deserialize(&data).unwrap())
         }
     }
 }
 
 /// Get a lemma from the GLAFF
+#[must_use]
 pub fn get_lemma_from_glaff(word: String, glaff: &Option<Glaff>) -> String {
     match glaff {
         None => word,
@@ -86,12 +82,14 @@ fn is_short_word(word: &String) -> bool {
     word.len() <= 2
 }
 
+#[must_use]
+#[allow(clippy::implicit_hasher)]
 pub fn get_keywords_from_text(
     text: &str,
     stop_words: &[String],
-    lemmes: &Option<HashMap<String, String>>,
+    lemmes: &Option<Glaff>,
 ) -> Vec<String> {
-    text.split(|c| !char::is_alphanumeric(c))
+    text.split(|c| !char::is_alphabetic(c))
         .par_bridge()
         .filter_map(|e| {
             let word = get_lemma_from_glaff(e.to_lowercase(), lemmes);

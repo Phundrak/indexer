@@ -91,6 +91,17 @@ fn get_simple_tag(
     }
 }
 
+/// Parse an HTML file
+///
+/// Receive an HTML file’s content raw, extract from it its title,
+/// keywords, description, and text.
+///
+/// # Errors
+///
+/// If any error occurs when parsing the HTML, return it to the caller
+/// function. For more information, see [`PdfParsingError`].
+///
+/// [`HtmlParsingError`]: ./struct.HtmlParsingError.html
 pub fn parse(doc: &[u8]) -> ParsingResult {
     let html_string = match std::str::from_utf8(doc) {
         Ok(v) => v,

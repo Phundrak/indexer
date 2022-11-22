@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
 use rocket::http::Status;
@@ -6,16 +8,17 @@ use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
 use tracing::{debug, info};
 
-use crate::db;
-use crate::db::models::Document;
+use crate::db::{self, models::Document};
 use crate::fileparser::get_content;
-use crate::kwparser::{self, Glaff};
+use crate::kwparser;
+use crate::spelling::Dictionary;
 
 #[allow(clippy::module_name_repetitions)]
 pub struct ServerState {
     pub pool: Pool<ConnectionManager<PgConnection>>,
     pub stopwords: Vec<String>,
-    pub glaff: Option<Glaff>,
+    pub glaff: Option<HashMap<String, String>>,
+    pub dictionary: Option<Dictionary>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -80,7 +83,12 @@ async fn fetch_content(url: &String) -> ApiResponse<Vec<u8>> {
 // Inserting into the database ////////////////////////////////////////////////
 
 // TODO: Check if the URL is already in the database
-#[post("/doc?<url>")]
+/// Index a document and add it to the database
+///
+/// # Errors
+///
+/// Errors might originate from the database, Diesel, or Rocket
+#[post("/doc/<url>")]
 pub async fn index_url(
     url: String,
     state: &State<ServerState>,
@@ -104,7 +112,7 @@ pub async fn index_url(
         title: content.title.clone(),
         name: url.clone(),
         doctype: db::models::DocumentType::Online,
-        description: content.description.clone()
+        description: content.description.clone(),
     };
     db::add_document(conn, &doc, &content).map_err(|e| {
         Custom(
@@ -118,7 +126,12 @@ pub async fn index_url(
 
 // Deleting from the database /////////////////////////////////////////////////
 
-#[delete("/doc?<id>")]
+/// Delete the document `id`
+///
+/// # Errors
+///
+/// Errors might originate from the database, Diesel, or Rocket
+#[delete("/doc/<id>")]
 pub fn delete_document(
     id: &str,
     state: &State<ServerState>,
@@ -136,7 +149,12 @@ pub fn delete_document(
 
 // Reading the database ///////////////////////////////////////////////////////
 
-#[get("/search?<query>")]
+/// Search documents matching the keywords in `query`
+///
+/// # Errors
+///
+/// Errors might originate from the database, Diesel, or Rocket
+#[get("/search/<query>")]
 pub fn search_query(
     query: &str,
     state: &State<ServerState>,
@@ -155,6 +173,11 @@ pub fn search_query(
     json_val_or_error!(db::keywords_search(conn, &query))
 }
 
+/// List indexed documents
+///
+/// # Errors
+///
+/// Errors might originate from the database, Diesel, or Rocket
 #[get("/doc")]
 pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
     info!("Listing documents");
@@ -162,6 +185,11 @@ pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
     json_val_or_error!(db::list_documents(conn))
 }
 
+/// List keywords associated with a document
+///
+/// # Errors
+///
+/// Errors might originate from the database, Diesel, or Rocket
 #[get("/doc/<id>")]
 pub fn document_list_keywords(
     id: &str,
@@ -170,4 +198,11 @@ pub fn document_list_keywords(
     info!("Getting document \"{}\"", id);
     let conn = &mut get_connector!(state);
     json_val_or_error!(db::doc_list_keywords(conn, id))
+}
+
+// Utilities //////////////////////////////////////////////////////////////////
+#[get("/spelling/<word>")]
+#[must_use]
+pub fn spelling_word(word: String, state: &State<ServerState>) -> String {
+    crate::spelling::correct(word, &state.dictionary)
 }

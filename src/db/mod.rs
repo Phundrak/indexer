@@ -79,6 +79,12 @@ pub fn insert_word(
 }
 
 use crate::server::RankedKeyword;
+/// List keywords associated with a document
+///
+/// # Errors
+///
+/// Errors may be returned by Diesel, forward them to the function
+/// calling `doc_list_keywords`.
 pub fn doc_list_keywords(
     conn: &mut PgConnection,
     document: &str,
@@ -100,6 +106,16 @@ pub fn doc_list_keywords(
 }
 
 use crate::server::RankedDoc;
+
+/// Search a document by keywords
+///
+/// Return the documents matching at least one of the `words`, ordered
+/// in descending order by the amount of hits per word.
+///
+/// # Errors
+///
+/// Errors may be returned by Diesel, forward them to the function
+/// calling `keywords_search`.
 pub fn keywords_search(
     conn: &mut PgConnection,
     words: &[String],
@@ -142,6 +158,12 @@ pub fn keywords_search(
         .collect::<Vec<RankedDoc>>())
 }
 
+/// Add a document to the indexer
+///
+/// # Errors
+///
+/// Errors may be returned by Diesel, forward them to the function
+/// calling `add_document`.
 pub fn add_document(
     conn: &mut PgConnection,
     document: &Document,
@@ -160,11 +182,23 @@ pub fn add_document(
     Ok(())
 }
 
+/// List documents indexed in the database
+///
+/// # Errors
+///
+/// If any error is returned by the database, forward it to the
+/// function calling `list_documents`
 pub fn list_documents(conn: &mut PgConnection) -> DatabaseResult<Vec<String>> {
     use documents::dsl;
     dsl::documents.select(dsl::name).load(conn)
 }
 
+/// Delete a document from the database
+///
+/// # Errors
+///
+/// If any error is returned by the database, forward it to the
+/// function calling `list_documents`
 pub fn delete_document(
     conn: &mut PgConnection,
     document: &str,
