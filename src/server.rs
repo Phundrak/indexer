@@ -111,7 +111,7 @@ pub async fn index_url(
     let doc = Document {
         title: content.title.clone(),
         name: url.clone(),
-        doctype: db::models::DocumentType::Online,
+        doctype: db::models::DocType::Online,
         description: content.description.clone(),
     };
     db::add_document(conn, &doc, &content).map_err(|e| {
