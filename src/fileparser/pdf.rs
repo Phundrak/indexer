@@ -8,11 +8,10 @@ struct PdfParsingError(String);
 
 fn get_title(doc: &Document) -> Result<String, PdfParsingError> {
     info!("=== PDF: Parsing title");
-    if let Some(title) = doc.title() {
-        Ok(title.into())
-    } else {
-        Err(PdfParsingError("Could not get title".into()))
-    }
+    doc.title().map_or_else(
+        || Err(PdfParsingError("Could not get title".into())),
+        |title| Ok(title.into()),
+    )
 }
 
 fn get_keywords(doc: &Document) -> Vec<String> {

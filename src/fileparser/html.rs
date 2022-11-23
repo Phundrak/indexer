@@ -27,22 +27,25 @@ macro_rules! make_selector {
 fn get_title(document: &Html) -> Result<String, HtmlParsingError> {
     info!("== HTML: Parsing title");
     let selector = make_selector!("title");
-    if let Some(title) = document.select(&selector).next() {
-        let inner = title.inner_html();
-        let decorator =
-            html2text::render::text_renderer::TrivialDecorator::new();
-        Ok(html2text::from_read_with_decorator(
-            inner.as_bytes(),
-            inner.len(),
-            decorator,
-        )
-        .trim()
-        .into())
-    } else {
-        Err(HtmlParsingError::ElementNotFound(
-            "Could not find document’s title".into(),
-        ))
-    }
+    document.select(&selector).next().map_or_else(
+        || {
+            Err(HtmlParsingError::ElementNotFound(
+                "Could not find document’s title".into(),
+            ))
+        },
+        |title| {
+            let inner = title.inner_html();
+            let decorator =
+                html2text::render::text_renderer::TrivialDecorator::new();
+            Ok(html2text::from_read_with_decorator(
+                inner.as_bytes(),
+                inner.len(),
+                decorator,
+            )
+            .trim()
+            .into())
+        },
+    )
 }
 
 fn get_keywords(document: &Html) -> Result<Vec<String>, HtmlParsingError> {
@@ -75,20 +78,23 @@ fn get_simple_tag(
 ) -> Result<String, HtmlParsingError> {
     info!("== Retrieving HTML tag {}", tag);
     let selector = make_selector!(tag);
-    if let Some(element) = document.select(&selector).next() {
-        let decorator =
-            html2text::render::text_renderer::TrivialDecorator::new();
-        Ok(html2text::from_read_with_decorator(
-            element.inner_html().as_bytes(),
-            element.inner_html().len(),
-            decorator,
-        ))
-    } else {
-        Err(HtmlParsingError::ElementNotFound(format!(
-            "Could not find tag {}",
-            tag
-        )))
-    }
+    document.select(&selector).next().map_or_else(
+        || {
+            Err(HtmlParsingError::ElementNotFound(format!(
+                "Could not find tag {}",
+                tag
+            )))
+        },
+        |element| {
+            let decorator =
+                html2text::render::text_renderer::TrivialDecorator::new();
+            Ok(html2text::from_read_with_decorator(
+                element.inner_html().as_bytes(),
+                element.inner_html().len(),
+                decorator,
+            ))
+        },
+    )
 }
 
 /// Parse an HTML file
