@@ -1,6 +1,6 @@
+use color_eyre::eyre::Result;
 use rocket::serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
-use color_eyre::eyre::Result;
 
 /// All characters used in the languages stored in the database
 pub static ALPHABET: &str = "aàâbcdeéèëêfghiîïjklmnoôpqrstuûüvwxyÿz";
@@ -47,7 +47,6 @@ pub fn correct(word: String, dictionary: &Option<Dictionary>) -> String {
             let mut candidates: HashMap<usize, String> = HashMap::new();
             let edits_w = edits(&word);
 
-            // FIXME: This crashes  for some reasons, investigate on it
             // Try to find an edit of the current word in the dictionary
             for edit in &edits_w {
                 if let Some(score) = dictionary.words.get(edit) {
@@ -88,21 +87,27 @@ pub fn correct(word: String, dictionary: &Option<Dictionary>) -> String {
 /// [`ALPHABET`]: ./static.ALPHABET.html
 #[must_use]
 pub fn edits(word: &str) -> Vec<String> {
-    let mut results = Vec::new();
-    for i in 0..word.len() {
-        let (first, last) = word.split_at(i);
+    let mut results: Vec<String> = Vec::new();
+    let word_vec = word.chars().collect::<Vec<_>>();
+    for i in 0..word_vec.len() {
+        let (first, last) = word_vec.split_at(i);
         // deletion
-        results.push([first, &last[1..]].concat());
+        results.push([first, &last[1..]].concat().into_iter().collect());
         // transposition
-        results.push([first, &last[1..2], &last[..1], &last[2..]].concat());
-
+        if i < word_vec.len() - 1 {
+            results.push(
+                [first, &last[1..2], &last[..1], &last[2..]]
+                    .concat()
+                    .into_iter()
+                    .collect(),
+            );
+        }
         for c in ALPHABET.chars() {
-            let mut buffer = [0; 1];
-            let result = c.encode_utf8(&mut buffer);
             // alteration
-            results.push([first, result, &last[1..]].concat());
+            results
+                .push([first, &[c], &last[1..]].concat().into_iter().collect());
             // insertion
-            results.push([first, result, last].concat());
+            results.push([first, &[c], last].concat().into_iter().collect());
         }
     }
     results
