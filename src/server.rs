@@ -37,6 +37,31 @@ pub struct RankedKeyword {
     pub rank: i32,
 }
 
+#[derive(Serialize, Default)]
+#[serde(crate = "rocket::serde")]
+pub struct QueryResult {
+    spelling_suggestion: Option<String>,
+    results: Vec<RankedDoc>,
+}
+
+impl QueryResult {
+    #[must_use]
+    pub fn new(
+        results: Vec<RankedDoc>,
+        initial_query: &str,
+        query_suggestion: String,
+    ) -> Self {
+        Self {
+            spelling_suggestion: if initial_query == query_suggestion {
+                None
+            } else {
+                Some(query_suggestion)
+            },
+            results,
+        }
+    }
+}
+
 macro_rules! api_error {
     ($message:expr) => {
         Custom(Status::InternalServerError, $message)
@@ -158,19 +183,28 @@ pub fn delete_document(
 pub fn search_query(
     query: &str,
     state: &State<ServerState>,
-) -> ApiResponse<Json<Vec<RankedDoc>>> {
+) -> ApiResponse<Json<QueryResult>> {
+    use crate::spelling::correct;
     info!("Query \"{}\"", query);
     if query.is_empty() {
-        return Ok(Json(Vec::new()));
+        return Ok(Json(QueryResult::default()));
     }
     let conn = &mut get_connector!(state);
     let glaff = &state.glaff;
-    let query = query
+    let query_vec = query
         .split_whitespace()
         .map(|s| kwparser::get_lemma_from_glaff(s.to_lowercase(), glaff))
         .collect::<Vec<String>>();
-    debug!("Normalized query: {:?}", query);
-    json_val_or_error!(db::keywords_search(conn, &query))
+    let query_suggestion = query_vec
+        .iter()
+        .map(|s| correct(s.to_string(), &state.dictionary))
+        .collect::<Vec<String>>()
+        .concat();
+    debug!("Normalized query_vec: {:?}", query_vec);
+    debug!("Suggested query: {}", query_suggestion);
+    db::keywords_search(conn, &query_vec)
+        .map(|results| Json(QueryResult::new(results, query, query_suggestion)))
+        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))
 }
 
 /// List indexed documents
