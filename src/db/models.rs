@@ -15,7 +15,7 @@ use rocket::serde::{Deserialize, Serialize};
 )]
 #[DieselTypePath = "crate::db::schema::sql_types::Documenttype"]
 #[serde(crate = "rocket::serde")]
-pub enum DocumentType {
+pub enum DocType {
     Online,
     Offline,
 }
@@ -35,7 +35,7 @@ pub enum DocumentType {
 pub struct Document {
     pub name: String,
     pub title: String,
-    pub doctype: DocumentType,
+    pub doctype: DocType,
     pub description: String,
 }
 

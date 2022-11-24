@@ -23,6 +23,15 @@ pub struct ParsedDocument {
 pub type ParsedFile = (String, Vec<String>, String, Option<String>);
 pub type ParsingResult = Result<ParsedFile, FileParsingError>;
 
+/// Get the body of a file
+///
+/// Get from the raw content of a file the text from its body.
+///
+/// # Errors
+///
+/// If no mime type is detected, return a [`FileParsingError`].
+///
+/// [`FileParsingError`]: ./struct.FileParsingError.html
 pub fn get_content(
     doc: &[u8],
     stop_words: &[String],
