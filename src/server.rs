@@ -83,10 +83,9 @@ macro_rules! get_connector {
 
 macro_rules! json_val_or_error {
     ($result:expr) => {
-        match $result {
-            Ok(val) => Ok(Json(val)),
-            Err(e) => Err(Custom(Status::InternalServerError, e.to_string())),
-        }
+        $result
+            .map(|val| Json(val))
+            .map_err(|e| Custom(Status::InternalServerError, e.to_string()))
     };
 }
 
@@ -163,13 +162,11 @@ pub fn delete_document(
 ) -> ApiResponse<()> {
     info!("Deleting document \"{}\"", id);
     let conn = &mut get_connector!(state);
-    match db::delete_document(conn, id) {
-        Ok(_) => {
+    db::delete_document(conn, id)
+        .map(|_| {
             info!("Deleted document \"{}\"", id);
-            Ok(())
-        }
-        Err(e) => Err(api_error!(e.to_string())),
-    }
+        })
+        .map_err(|e| api_error!(e.to_string()))
 }
 
 // Reading the database ///////////////////////////////////////////////////////
