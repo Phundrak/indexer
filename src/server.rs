@@ -121,7 +121,7 @@ async fn fetch_content(url: &String) -> ApiResponse<Vec<u8>> {
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[post("/doc/<url>")]
+#[post("/doc?<url>")]
 pub async fn index_url(
     url: String,
     state: &State<ServerState>,
@@ -164,7 +164,7 @@ pub async fn index_url(
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[delete("/doc/<id>")]
+#[delete("/doc?<id>")]
 pub fn delete_document(
     id: &str,
     state: &State<ServerState>,
