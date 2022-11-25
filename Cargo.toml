@@ -16,6 +16,7 @@ csv = "1.1"
 
 # Database
 diesel = { version = "2.0.2", features = ["postgres", "extras"] }
+diesel_migrations = "2.0.0"
 diesel-derive-enum = { version = "2.0.0-rc.0", features = ["postgres"] }
 dotenvy = "0.15"
 

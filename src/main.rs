@@ -4,8 +4,8 @@
 #[macro_use]
 extern crate rocket;
 
-use tracing::info;
 use color_eyre::eyre::Result;
+use tracing::info;
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -67,6 +67,9 @@ async fn main() -> Result<()> {
 
     let allowed_origins = AllowedOrigins::some_regex(&[".*"]);
     let cors = make_cors(allowed_origins)?;
+    let pool = db::get_connection_pool();
+    info!("Running database migrations");
+    db::run_migrations(&mut pool.get()?)?;
 
     info!("Launching server");
     #[allow(clippy::let_underscore_drop)]
@@ -87,7 +90,7 @@ async fn main() -> Result<()> {
         )
         .attach(cors)
         .manage(server::ServerState {
-            pool: db::get_connection_pool(),
+            pool,
             stopwords,
             glaff,
             dictionary,

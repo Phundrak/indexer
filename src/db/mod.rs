@@ -1,6 +1,10 @@
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::PgConnection;
+use diesel_migrations::{
+    embed_migrations, EmbeddedMigrations, MigrationHarness,
+};
+
 use dotenvy::dotenv;
 use tracing::debug;
 
@@ -17,6 +21,31 @@ use schema::{documents, keywords};
 use crate::fileparser::ParsedDocument;
 
 pub type DatabaseResult<T> = Result<T, diesel::result::Error>;
+
+/// List of migrations the database may have to perform when indexer
+/// is launching
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+
+/// Run the list of migrations held by `MIGRATIONS`.
+///
+/// # Errors
+///
+/// If any error is encountered while running a migration, return
+pub fn run_migrations(
+    connection: &mut impl MigrationHarness<diesel::pg::Pg>,
+) -> DatabaseResult<()> {
+    use diesel::result::{DatabaseErrorKind, Error};
+    connection
+        .run_next_migration(MIGRATIONS)
+        .map(|_| ())
+        .map_err(|e| {
+            Error::DatabaseError(
+                DatabaseErrorKind::Unknown,
+                Box::new(format!("Error running migrations: {}", e)),
+            )
+        })
+}
+
 
 #[must_use]
 pub fn get_connection_pool() -> Pool<ConnectionManager<PgConnection>> {
