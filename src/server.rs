@@ -289,14 +289,14 @@ pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[get("/doc/<id>")]
+#[get("/keywords?<doc>")]
 pub fn document_list_keywords(
-    id: &str,
+    doc: &str,
     state: &State<ServerState>,
 ) -> ApiResponse<Json<Vec<RankedKeyword>>> {
-    info!("Getting document \"{}\"", id);
+    info!("Getting document \"{}\"", doc);
     let conn = &mut get_connector!(state);
-    json_val_or_error!(db::doc_list_keywords(conn, id))
+    json_val_or_error!(db::doc_list_keywords(conn, doc))
 }
 
 // Utilities //////////////////////////////////////////////////////////////////

@@ -78,13 +78,13 @@ async fn main() -> Result<()> {
             "/",
             routes![
                 // POST
-                server::index_url, // /doc/:url
+                server::index_url, // /doc?url=:url
                 // DELETE
-                server::delete_document, // /doc/:id
+                server::delete_document, // /doc?id=:id
                 // GET
-                server::search_query, // /searchy/:query
+                server::search_query, // /searchy?query=:query
                 server::list_docs,    // /doc
-                server::document_list_keywords, // /doc/:id
+                server::document_list_keywords, // /keywords?doc=:id
                 server::spelling_word, // /spelling/:word
             ],
         )
