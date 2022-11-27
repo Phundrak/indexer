@@ -1,11 +1,12 @@
 use std::fmt::Debug;
 
 use crate::fileparser::{FileParsingError, ParsingResult};
-use scraper::{Html, Selector};
+use scraper::{ElementRef, Html, Selector};
 use tracing::info;
 
 #[derive(Debug)]
 enum HtmlParsingError {
+    ElementAttrNotFound(String),
     ElementNotFound(String),
     Other(String),
 }
@@ -65,17 +66,33 @@ fn get_keywords(document: &Html) -> Result<Vec<String>, HtmlParsingError> {
 }
 
 fn get_body(document: &Html) -> Result<String, HtmlParsingError> {
-    get_simple_tag(document, "body")
+    get_simple_tag(document, "body").map(|body| {
+        let decorator =
+            html2text::render::text_renderer::TrivialDecorator::new();
+        html2text::from_read_with_decorator(
+            body.inner_html().as_bytes(),
+            body.inner_html().len(),
+            decorator,
+        )
+    })
 }
 
 fn get_description(document: &Html) -> Result<String, HtmlParsingError> {
-    get_simple_tag(document, r#"meta[name="description"]"#)
+    match get_simple_tag(document, r#"meta[name="description"]"#) {
+        Ok(description) => match description.value().attr("content") {
+            Some(val) => Ok(val.to_string()),
+            None => Err(HtmlParsingError::ElementAttrNotFound(
+                r#"Could not find content of description"#.to_string(),
+            )),
+        },
+        Err(e) => Err(e),
+    }
 }
 
-fn get_simple_tag(
-    document: &Html,
+fn get_simple_tag<'r>(
+    document: &'r Html,
     tag: &str,
-) -> Result<String, HtmlParsingError> {
+) -> Result<ElementRef<'r>, HtmlParsingError> {
     info!("== Retrieving HTML tag {}", tag);
     let selector = make_selector!(tag);
     document.select(&selector).next().map_or_else(
@@ -85,15 +102,7 @@ fn get_simple_tag(
                 tag
             )))
         },
-        |element| {
-            let decorator =
-                html2text::render::text_renderer::TrivialDecorator::new();
-            Ok(html2text::from_read_with_decorator(
-                element.inner_html().as_bytes(),
-                element.inner_html().len(),
-                decorator,
-            ))
-        },
+        Ok,
     )
 }
 
@@ -122,12 +131,7 @@ pub fn parse(doc: &[u8]) -> ParsingResult {
     let title = get_title(&html).map_err(FileParsingError::new)?;
     let keywords = get_keywords(&html).map_err(FileParsingError::new)?;
     let body = get_body(&html).map_err(FileParsingError::new)?;
-    let description = {
-        if let Ok(desc) = get_description(&html) {
-            Some(desc)
-        } else {
-            None
-        }
-    };
-    Ok((title, keywords, body, description))
+    let subject = get_description(&html).ok();
+    info!("====== Subject of file: {:?}", subject);
+    Ok((title, keywords, body, subject))
 }
