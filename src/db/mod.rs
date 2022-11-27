@@ -35,17 +35,31 @@ pub fn run_migrations(
     connection: &mut impl MigrationHarness<diesel::pg::Pg>,
 ) -> DatabaseResult<()> {
     use diesel::result::{DatabaseErrorKind, Error};
-    connection
-        .run_next_migration(MIGRATIONS)
-        .map(|_| ())
-        .map_err(|e| {
-            Error::DatabaseError(
-                DatabaseErrorKind::Unknown,
-                Box::new(format!("Error running migrations: {}", e)),
-            )
-        })
+    match connection.has_pending_migration(MIGRATIONS) {
+        Ok(migrate) => {
+            if migrate {
+                connection
+                    .run_next_migration(MIGRATIONS)
+                    .map(|_| ())
+                    .map_err(|e| {
+                        Error::DatabaseError(
+                            DatabaseErrorKind::Unknown,
+                            Box::new(format!(
+                                "Error running migrations: {}",
+                                e
+                            )),
+                        )
+                    })
+            } else {
+                Ok(())
+            }
+        }
+        Err(e) => Err(Error::DatabaseError(
+            DatabaseErrorKind::Unknown,
+            Box::new(format!("Error: {}", e)),
+        )),
+    }
 }
-
 
 #[must_use]
 pub fn get_connection_pool() -> Pool<ConnectionManager<PgConnection>> {
