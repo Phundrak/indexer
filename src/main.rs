@@ -98,6 +98,7 @@ async fn main() -> Result<()> {
             appwrite_bucket: std::env::var("APPWRITE_BUCKET")?,
             appwrite_key: std::env::var("APPWRITE_KEY")?,
             appwrite_endpoint: std::env::var("APPWRITE_ENDPOINT")?,
+            appwrite_project: std::env::var("APPWRITE_PROJECT")?,
         })
         .launch()
         .await?;

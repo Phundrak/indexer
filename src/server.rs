@@ -53,13 +53,14 @@ type DbPool = PooledConnection<ConnectionManager<PgConnection>>;
 
 #[allow(clippy::module_name_repetitions)]
 pub struct ServerState {
-    pub pool: Pool<ConnectionManager<PgConnection>>,
-    pub stopwords: Vec<String>,
+    pub appwrite_bucket: String,
     pub appwrite_endpoint: String,
     pub appwrite_key: String,
-    pub appwrite_bucket: String,
-    pub glaff: Option<HashMap<String, String>>,
+    pub appwrite_project: String,
     pub dictionary: Option<Dictionary>,
+    pub glaff: Option<HashMap<String, String>>,
+    pub pool: Pool<ConnectionManager<PgConnection>>,
+    pub stopwords: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -189,11 +190,11 @@ fn index_file(
 /// # Errors
 ///
 /// TODO: I’ll document that later
-#[post("/doc", data = "<file>")]
+#[post("/doc?<filename>", data = "<file>")]
 pub async fn index_upload(
     state: &State<ServerState>,
     mut file: TempFile<'_>,
-    content_length: ContentLength,
+    filename: &str, content_length: ContentLength,
 ) -> ApiResponse<()> {
     use sha256::digest;
     // let size = content_length.0.into::<ByteUnit>();
@@ -204,7 +205,29 @@ pub async fn index_upload(
         .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
     let file = std::fs::read("tmp/file.pdf")
         .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
-    index_file(state, &file, digest(&file as &[u8]).as_str())?;
+    let id = digest(&file as &[u8]);
+    index_file(state, &file, id.as_str())?;
+
+    let reqwest_client = reqwest::Client::new();
+
+    // Push to Appwrite
+    reqwest_client
+        .post(format!(
+            "{}/storage/buckets/{}/files",
+            state.appwrite_endpoint, state.appwrite_bucket
+        ))
+        .header("X-Appwrite-Id", state.appwrite_key.clone())
+        .header("X-Appwrite-Project", state.appwrite_project.clone())
+        .form(&[("fileId", id)])
+        .body(file)
+        .send()
+        .await
+        .map_err(|e| {
+            Custom(
+                Status::InternalServerError,
+                format!("Failed to upload file to Appwrite: {}", e),
+            )
+        })?;
     std::fs::remove_file("tmp/file.pdf")
         .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
     // let file = file
