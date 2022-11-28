@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use color_eyre::eyre::Result;
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
-use rocket::data::{ToByteUnit, ByteUnit};
+use rocket::data::ByteUnit;
+use rocket::fs::TempFile;
 use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::serde::{json::Json, Deserialize, Serialize};
-use rocket::{Data, State};
+use rocket::State;
 use tracing::{debug, info};
 
 use crate::db::{self, models::Document};
@@ -21,7 +22,7 @@ pub struct ContentLength(usize);
 #[derive(Debug)]
 pub enum ContentLengthError {
     Missing,
-    Invalid
+    Invalid,
 }
 
 use rocket::request::{FromRequest, Outcome, Request};
@@ -29,19 +30,24 @@ use rocket::request::{FromRequest, Outcome, Request};
 impl<'r> FromRequest<'r> for ContentLength {
     type Error = ContentLengthError;
 
-    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+    async fn from_request(
+        request: &'r Request<'_>,
+    ) -> Outcome<Self, Self::Error> {
         match request.headers().get_one("Content-Length") {
-            None => Outcome::Failure((Status::BadRequest, ContentLengthError::Missing)),
-            Some(key) => {
-                match key.to_string().parse::<usize>() {
-                    Ok(val) => Outcome::Success(ContentLength(val)),
-                    Err(_) => Outcome::Failure((Status::BadRequest, ContentLengthError::Invalid))
-                }
-            }
+            None => Outcome::Failure((
+                Status::BadRequest,
+                ContentLengthError::Missing,
+            )),
+            Some(key) => match key.to_string().parse::<usize>() {
+                Ok(val) => Outcome::Success(ContentLength(val)),
+                Err(_) => Outcome::Failure((
+                    Status::BadRequest,
+                    ContentLengthError::Invalid,
+                )),
+            },
         }
     }
 }
-
 
 type DbPool = PooledConnection<ConnectionManager<PgConnection>>;
 
@@ -183,30 +189,37 @@ fn index_file(
 /// # Errors
 ///
 /// TODO: I’ll document that later
-#[post("/doc", format = "any", data = "<file>")]
+#[post("/doc", data = "<file>")]
 pub async fn index_upload(
     state: &State<ServerState>,
-    file: Data<'_>,
+    mut file: TempFile<'_>,
     content_length: ContentLength,
 ) -> ApiResponse<()> {
     use sha256::digest;
     // let size = content_length.0.into::<ByteUnit>();
     let size: ByteUnit = content_length.0.into();
     info!("Uploading a file! {} bytes", size);
-        info!("Peek complete");
-        let file = file
-            .open(size)
-            .into_bytes()
-            .await
-            .map_err(|e| api_error!(e.to_string()))?;
-        let file = if file.is_complete() {
-            file.into_inner()
-        } else {
-            return Err(api_error!("Remaining bytes in stream".into()));
-        };
-        let id = digest(&file as &[u8]);
-        // TODO upload file to Appwrite
-        index_file(state, &file as &[u8], &id)?;
+    file.move_copy_to("tmp/file.pdf")
+        .await
+        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
+    let file = std::fs::read("tmp/file.pdf")
+        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
+    index_file(state, &file, digest(&file as &[u8]).as_str())?;
+    std::fs::remove_file("tmp/file.pdf")
+        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
+    // let file = file
+    //     .open(size)
+    //     .into_bytes()
+    //     .await
+    //     .map_err(|e| api_error!(e.to_string()))?;
+    // let file = if file.is_complete() {
+    //     file.into_inner()
+    // } else {
+    //     return Err(api_error!("Remaining bytes in stream".into()));
+    // };
+    // let id = digest(&file as &[u8]);
+    // TODO upload file to Appwrite
+    // index_file(state, &file as &[u8], &id)?;
     Ok(())
 }
 
