@@ -190,11 +190,11 @@ fn index_file(
 /// # Errors
 ///
 /// TODO: I’ll document that later
-#[post("/doc?<filename>", data = "<file>")]
+#[post("/doc", data = "<file>")]
 pub async fn index_upload(
     state: &State<ServerState>,
     mut file: TempFile<'_>,
-    filename: &str, content_length: ContentLength,
+    content_length: ContentLength,
 ) -> ApiResponse<()> {
     use sha256::digest;
     // let size = content_length.0.into::<ByteUnit>();
@@ -211,7 +211,8 @@ pub async fn index_upload(
     let reqwest_client = reqwest::Client::new();
 
     // Push to Appwrite
-    reqwest_client
+    info!("Uploading to Appwrite bucket");
+    let res = reqwest_client
         .post(format!(
             "{}/storage/buckets/{}/files",
             state.appwrite_endpoint, state.appwrite_bucket
@@ -228,6 +229,8 @@ pub async fn index_upload(
                 format!("Failed to upload file to Appwrite: {}", e),
             )
         })?;
+    info!("Appwrite: {:?}", res);
+    info!("Removing temporary file");
     std::fs::remove_file("tmp/file.pdf")
         .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
     // let file = file
