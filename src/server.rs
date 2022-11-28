@@ -196,7 +196,7 @@ fn search_document_by_keyword(
                 Some(spelling_suggestion.join(" ")),
                 using_suggestion,
             )))
-        },
+        }
         // If we are not usin the spelling suggestion, only try
         UseSpellingSuggestion::No => {
             // If the results are not empty, or if the spelling
@@ -258,7 +258,12 @@ pub fn search_query(
     debug!("Normalized query_vec: {:?}", query_vec);
     let spelling_suggestion = query_vec
         .iter()
-        .map(|s| correct(s.to_string(), &state.dictionary))
+        .map(|s| {
+            kwparser::get_lemma_from_glaff(
+                correct(s.to_string(), &state.dictionary),
+                glaff,
+            )
+        })
         .collect::<Vec<String>>();
 
     // Execute the query
