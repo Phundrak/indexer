@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use color_eyre::eyre::Result;
 use diesel::pg::PgConnection;
-use rocket::data::ToByteUnit;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
+use rocket::data::{ToByteUnit, ByteUnit};
 use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::serde::{json::Json, Deserialize, Serialize};
@@ -14,6 +14,34 @@ use crate::db::{self, models::Document};
 use crate::fileparser::get_content;
 use crate::kwparser;
 use crate::spelling::Dictionary;
+
+#[derive(Copy, Clone)]
+pub struct ContentLength(usize);
+
+#[derive(Debug)]
+pub enum ContentLengthError {
+    Missing,
+    Invalid
+}
+
+use rocket::request::{FromRequest, Outcome, Request};
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for ContentLength {
+    type Error = ContentLengthError;
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        match request.headers().get_one("Content-Length") {
+            None => Outcome::Failure((Status::BadRequest, ContentLengthError::Missing)),
+            Some(key) => {
+                match key.to_string().parse::<usize>() {
+                    Ok(val) => Outcome::Success(ContentLength(val)),
+                    Err(_) => Outcome::Failure((Status::BadRequest, ContentLengthError::Invalid))
+                }
+            }
+        }
+    }
+}
+
 
 type DbPool = PooledConnection<ConnectionManager<PgConnection>>;
 
@@ -137,7 +165,7 @@ fn index_file(
     let doc = Document {
         title: content.title.clone(),
         name: identifier.to_string(),
-        doctype: db::models::DocumentType::Online,
+        doctype: db::models::DocType::Online,
         description: content.description.clone(),
     };
     db::add_document(conn, &doc, &content).map_err(|e| {
@@ -147,6 +175,38 @@ fn index_file(
         )
     })?;
     info!("Indexed {}", identifier);
+    Ok(())
+}
+
+/// Upload and index a document
+///
+/// # Errors
+///
+/// TODO: I’ll document that later
+#[post("/doc", format = "any", data = "<file>")]
+pub async fn index_upload(
+    state: &State<ServerState>,
+    file: Data<'_>,
+    content_length: ContentLength,
+) -> ApiResponse<()> {
+    use sha256::digest;
+    // let size = content_length.0.into::<ByteUnit>();
+    let size: ByteUnit = content_length.0.into();
+    info!("Uploading a file! {} bytes", size);
+        info!("Peek complete");
+        let file = file
+            .open(size)
+            .into_bytes()
+            .await
+            .map_err(|e| api_error!(e.to_string()))?;
+        let file = if file.is_complete() {
+            file.into_inner()
+        } else {
+            return Err(api_error!("Remaining bytes in stream".into()));
+        };
+        let id = digest(&file as &[u8]);
+        // TODO upload file to Appwrite
+        index_file(state, &file as &[u8], &id)?;
     Ok(())
 }
 
@@ -161,34 +221,11 @@ pub async fn index_url(
     url: String,
     state: &State<ServerState>,
 ) -> ApiResponse<()> {
-    info!("Indexing {}", &url);
+    info!("Indexing URL {}", &url);
     info!("== Downloading {}", &url);
     let document = fetch_content(&url).await?;
     info!("== Downloaded {}", &url);
     index_file(state, &document, url.as_str())?;
-    Ok(())
-}
-
-#[post("/doc", format = "any", data = "<file>")]
-pub async fn index_upload(
-    state: &State<ServerState>,
-    file: Data<'_>,
-) -> ApiResponse<()> {
-    use sha256::digest;
-    let file = file
-        .open(30.mebibytes())
-        .into_bytes()
-        .await
-        .map_err(|e| api_error!(e.to_string()))?;
-    let file = if file.is_complete() {
-        file.into_inner()
-    } else {
-        return Err(api_error!("Remaining bytes in stream".into()));
-    };
-    let id = digest(&file as &[u8]);
-    debug!("Uploaded file bytes: {:?}", file);
-    // TODO upload file to Appwrite
-    index_file(state, &file as &[u8], &id)?;
     Ok(())
 }
 
@@ -231,7 +268,7 @@ fn search_document_by_keyword(
                 Some(spelling_suggestion.join(" ")),
                 using_suggestion,
             )))
-        },
+        }
         // If we are not usin the spelling suggestion, only try
         UseSpellingSuggestion::No => {
             // If the results are not empty, or if the spelling
