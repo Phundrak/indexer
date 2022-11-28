@@ -95,6 +95,9 @@ async fn main() -> Result<()> {
             stopwords,
             glaff,
             dictionary,
+            appwrite_bucket: std::env::var("APPWRITE_BUCKET")?,
+            appwrite_key: std::env::var("APPWRITE_KEY")?,
+            appwrite_endpoint: std::env::var("APPWRITE_ENDPOINT")?,
         })
         .launch()
         .await?;
