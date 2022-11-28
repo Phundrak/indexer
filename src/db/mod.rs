@@ -1,6 +1,10 @@
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::PgConnection;
+use diesel_migrations::{
+    embed_migrations, EmbeddedMigrations, MigrationHarness,
+};
+
 use dotenvy::dotenv;
 use tracing::debug;
 
@@ -17,6 +21,45 @@ use schema::{documents, keywords};
 use crate::fileparser::ParsedDocument;
 
 pub type DatabaseResult<T> = Result<T, diesel::result::Error>;
+
+/// List of migrations the database may have to perform when indexer
+/// is launching
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+
+/// Run the list of migrations held by `MIGRATIONS`.
+///
+/// # Errors
+///
+/// If any error is encountered while running a migration, return
+pub fn run_migrations(
+    connection: &mut impl MigrationHarness<diesel::pg::Pg>,
+) -> DatabaseResult<()> {
+    use diesel::result::{DatabaseErrorKind, Error};
+    match connection.has_pending_migration(MIGRATIONS) {
+        Ok(migrate) => {
+            if migrate {
+                connection
+                    .run_next_migration(MIGRATIONS)
+                    .map(|_| ())
+                    .map_err(|e| {
+                        Error::DatabaseError(
+                            DatabaseErrorKind::Unknown,
+                            Box::new(format!(
+                                "Error running migrations: {}",
+                                e
+                            )),
+                        )
+                    })
+            } else {
+                Ok(())
+            }
+        }
+        Err(e) => Err(Error::DatabaseError(
+            DatabaseErrorKind::Unknown,
+            Box::new(format!("Error: {}", e)),
+        )),
+    }
+}
 
 #[must_use]
 pub fn get_connection_pool() -> Pool<ConnectionManager<PgConnection>> {
@@ -79,6 +122,12 @@ pub fn insert_word(
 }
 
 use crate::server::RankedKeyword;
+/// List keywords associated with a document
+///
+/// # Errors
+///
+/// Errors may be returned by Diesel, forward them to the function
+/// calling `doc_list_keywords`.
 pub fn doc_list_keywords(
     conn: &mut PgConnection,
     document: &str,
@@ -100,6 +149,16 @@ pub fn doc_list_keywords(
 }
 
 use crate::server::RankedDoc;
+
+/// Search a document by keywords
+///
+/// Return the documents matching at least one of the `words`, ordered
+/// in descending order by the amount of hits per word.
+///
+/// # Errors
+///
+/// Errors may be returned by Diesel, forward them to the function
+/// calling `keywords_search`.
 pub fn keywords_search(
     conn: &mut PgConnection,
     words: &[String],
@@ -142,6 +201,12 @@ pub fn keywords_search(
         .collect::<Vec<RankedDoc>>())
 }
 
+/// Add a document to the indexer
+///
+/// # Errors
+///
+/// Errors may be returned by Diesel, forward them to the function
+/// calling `add_document`.
 pub fn add_document(
     conn: &mut PgConnection,
     document: &Document,
@@ -160,11 +225,23 @@ pub fn add_document(
     Ok(())
 }
 
+/// List documents indexed in the database
+///
+/// # Errors
+///
+/// If any error is returned by the database, forward it to the
+/// function calling `list_documents`
 pub fn list_documents(conn: &mut PgConnection) -> DatabaseResult<Vec<String>> {
     use documents::dsl;
     dsl::documents.select(dsl::name).load(conn)
 }
 
+/// Delete a document from the database
+///
+/// # Errors
+///
+/// If any error is returned by the database, forward it to the
+/// function calling `list_documents`
 pub fn delete_document(
     conn: &mut PgConnection,
     document: &str,

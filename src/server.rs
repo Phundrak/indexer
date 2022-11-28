@@ -1,25 +1,31 @@
+use std::collections::HashMap;
+
+use color_eyre::eyre::Result;
 use diesel::pg::PgConnection;
-use diesel::r2d2::{ConnectionManager, Pool};
 use rocket::data::ToByteUnit;
+use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::{Data, State};
 use tracing::{debug, info};
 
-use crate::db;
-use crate::db::models::Document;
+use crate::db::{self, models::Document};
 use crate::fileparser::get_content;
-use crate::kwparser::{self, Glaff};
+use crate::kwparser;
+use crate::spelling::Dictionary;
+
+type DbPool = PooledConnection<ConnectionManager<PgConnection>>;
 
 #[allow(clippy::module_name_repetitions)]
 pub struct ServerState {
     pub pool: Pool<ConnectionManager<PgConnection>>,
     pub stopwords: Vec<String>,
-    pub glaff: Option<Glaff>,
     pub appwrite_endpoint: String,
     pub appwrite_key: String,
     pub appwrite_bucket: String,
+    pub glaff: Option<HashMap<String, String>>,
+    pub dictionary: Option<Dictionary>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -36,6 +42,37 @@ pub struct RankedDoc {
 pub struct RankedKeyword {
     pub keyword: String,
     pub rank: i32,
+}
+
+#[derive(Serialize, Default)]
+#[serde(crate = "rocket::serde")]
+pub struct QueryResult {
+    spelling_suggestion: Option<String>,
+    results: Vec<RankedDoc>,
+    using_suggestion: bool,
+}
+
+impl QueryResult {
+    #[must_use]
+    pub fn new(
+        results: Vec<RankedDoc>,
+        spelling_suggestion: Option<String>,
+        using_suggestion: &UseSpellingSuggestion,
+    ) -> Self {
+        Self {
+            results,
+            spelling_suggestion,
+            using_suggestion: match using_suggestion {
+                UseSpellingSuggestion::Yes => true,
+                UseSpellingSuggestion::No => false,
+            },
+        }
+    }
+}
+
+pub enum UseSpellingSuggestion {
+    Yes,
+    No,
 }
 
 macro_rules! api_error {
@@ -59,14 +96,13 @@ macro_rules! get_connector {
 
 macro_rules! json_val_or_error {
     ($result:expr) => {
-        match $result {
-            Ok(val) => Ok(Json(val)),
-            Err(e) => Err(Custom(Status::InternalServerError, e.to_string())),
-        }
+        $result
+            .map(|val| Json(val))
+            .map_err(|e| Custom(Status::InternalServerError, e.to_string()))
     };
 }
 
-pub type ApiResponse<T> = Result<T, Custom<String>>;
+pub type ApiResponse<T> = std::result::Result<T, Custom<String>>;
 
 async fn fetch_content(url: &String) -> ApiResponse<Vec<u8>> {
     match reqwest::get(url).await {
@@ -115,6 +151,11 @@ fn index_file(
 }
 
 // TODO: Check if the URL is already in the database
+/// Index a document and add it to the database
+///
+/// # Errors
+///
+/// Errors might originate from the database, Diesel, or Rocket
 #[post("/doc?<url>")]
 pub async fn index_url(
     url: String,
@@ -153,6 +194,11 @@ pub async fn index_upload(
 
 // Deleting from the database /////////////////////////////////////////////////
 
+/// Delete the document `id`
+///
+/// # Errors
+///
+/// Errors might originate from the database, Diesel, or Rocket
 #[delete("/doc?<id>")]
 pub fn delete_document(
     id: &str,
@@ -160,36 +206,112 @@ pub fn delete_document(
 ) -> ApiResponse<()> {
     info!("Deleting document \"{}\"", id);
     let conn = &mut get_connector!(state);
-    match db::delete_document(conn, id) {
-        Ok(_) => {
+    db::delete_document(conn, id)
+        .map(|_| {
             info!("Deleted document \"{}\"", id);
-            Ok(())
-        }
-        Err(e) => Err(api_error!(e.to_string())),
-    }
+        })
+        .map_err(|e| api_error!(e.to_string()))
 }
 
 // Reading the database ///////////////////////////////////////////////////////
 
-#[get("/search?<query>")]
+fn search_document_by_keyword(
+    conn: &mut DbPool,
+    query: &[String],
+    spelling_suggestion: &[String],
+    using_suggestion: &UseSpellingSuggestion,
+) -> Result<Json<QueryResult>> {
+    match using_suggestion {
+        // If we are already using the spelling suggestion, return
+        // what we have
+        UseSpellingSuggestion::Yes => {
+            let results = db::keywords_search(conn, spelling_suggestion)?;
+            Ok(Json(QueryResult::new(
+                results,
+                Some(spelling_suggestion.join(" ")),
+                using_suggestion,
+            )))
+        },
+        // If we are not usin the spelling suggestion, only try
+        UseSpellingSuggestion::No => {
+            // If the results are not empty, or if the spelling
+            // suggestion bears no difference with the initial query,
+            // return what we have
+            let results = db::keywords_search(conn, query)?;
+            if !results.is_empty() || query == spelling_suggestion {
+                Ok(Json(QueryResult::new(results, None, using_suggestion)))
+            } else {
+                // Otherwise, if the results were empty and the
+                // initial query is different from the spelling
+                // suggestion, try to search the database using it
+                search_document_by_keyword(
+                    conn,
+                    query,
+                    spelling_suggestion,
+                    &UseSpellingSuggestion::Yes,
+                )
+            }
+        }
+    }
+}
+
+/// Search documents matching the keywords in `query`
+///
+/// This function also executes a spell check on the query. If the
+/// function detects no results are found from the initial query, it
+/// will try to find other results using the spell checked version of
+/// the query. Whether the spell checked version of the query has been
+/// used or not is specified in the [`QueryResult`] type returned.
+///
+/// # Errors
+///
+/// Errors might originate from the database, Diesel, or Rocket
+///
+/// [`QueryResult`]: ./struct.QueryResult.html
+#[get("/search/<query>")]
 pub fn search_query(
     query: &str,
     state: &State<ServerState>,
-) -> ApiResponse<Json<Vec<RankedDoc>>> {
+) -> ApiResponse<Json<QueryResult>> {
+    use crate::spelling::correct;
+    // Filter out empty queries
     info!("Query \"{}\"", query);
     if query.is_empty() {
-        return Ok(Json(Vec::new()));
+        return Ok(Json(QueryResult::default()));
     }
+
     let conn = &mut get_connector!(state);
+
+    // Normalize query
     let glaff = &state.glaff;
-    let query = query
+    let query_vec = query
         .split_whitespace()
         .map(|s| kwparser::get_lemma_from_glaff(s.to_lowercase(), glaff))
         .collect::<Vec<String>>();
-    debug!("Normalized query: {:?}", query);
-    json_val_or_error!(db::keywords_search(conn, &query))
+
+    // Spellcheck query
+    debug!("Normalized query_vec: {:?}", query_vec);
+    let spelling_suggestion = query_vec
+        .iter()
+        .map(|s| correct(s.to_string(), &state.dictionary))
+        .collect::<Vec<String>>();
+
+    // Execute the query
+    debug!("Suggested query: {:?}", spelling_suggestion);
+    search_document_by_keyword(
+        conn,
+        &query_vec,
+        &spelling_suggestion,
+        &UseSpellingSuggestion::No,
+    )
+    .map_err(|e| Custom(Status::InternalServerError, e.to_string()))
 }
 
+/// List indexed documents
+///
+/// # Errors
+///
+/// Errors might originate from the database, Diesel, or Rocket
 #[get("/doc")]
 pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
     info!("Listing documents");
@@ -197,12 +319,24 @@ pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
     json_val_or_error!(db::list_documents(conn))
 }
 
-#[get("/doc?<id>")]
+/// List keywords associated with a document
+///
+/// # Errors
+///
+/// Errors might originate from the database, Diesel, or Rocket
+#[get("/keywords?<doc>")]
 pub fn document_list_keywords(
-    id: &str,
+    doc: &str,
     state: &State<ServerState>,
 ) -> ApiResponse<Json<Vec<RankedKeyword>>> {
-    info!("Getting document \"{}\"", id);
+    info!("Getting document \"{}\"", doc);
     let conn = &mut get_connector!(state);
-    json_val_or_error!(db::doc_list_keywords(conn, id))
+    json_val_or_error!(db::doc_list_keywords(conn, doc))
+}
+
+// Utilities //////////////////////////////////////////////////////////////////
+#[get("/spelling/<word>")]
+#[must_use]
+pub fn spelling_word(word: String, state: &State<ServerState>) -> String {
+    crate::spelling::correct(word, &state.dictionary)
 }

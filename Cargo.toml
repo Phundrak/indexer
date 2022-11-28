@@ -2,6 +2,11 @@
 name = "indexer"
 version = "0.2.0"
 edition = "2021"
+authors = ["Lucien Cartier-Tilet <lucien@phundrak.com>"]
+default-run = "indexer"
+homepage = "https://github.com/Phundrak/indexer"
+license = "GPL-3.0"
+publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -12,12 +17,12 @@ sha256 = "1.1.1"
 
 # Database
 diesel = { version = "2.0.2", features = ["postgres", "extras"] }
+diesel_migrations = "2.0.0"
 diesel-derive-enum = { version = "2.0.0-rc.0", features = ["postgres"] }
 dotenvy = "0.15"
 
 # Web server
 rocket = { version = "0.5.0-rc.2", features = ["json"] }
-# rocket_cors = "0.6.0-alpha1"
 rocket_cors = { git = "https://github.com/lawliet89/rocket_cors", branch = "master" }
 
 # File type inference
@@ -41,3 +46,6 @@ rayon = "1.5.3"
 
 # better error output
 color-eyre = "0.6.2"
+
+# Encode and decode bincode
+bincode = "1.3.3"
