@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use color_eyre::eyre::Result;
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
-use rocket::data::ByteUnit;
 use rocket::fs::TempFile;
 use rocket::http::Status;
 use rocket::response::status::Custom;
@@ -11,6 +10,7 @@ use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
 use tracing::{debug, info};
 
+use crate::db::models::DocType;
 use crate::db::{self, models::Document};
 use crate::fileparser::get_content;
 use crate::kwparser;
@@ -155,6 +155,7 @@ fn index_file(
     state: &State<ServerState>,
     file: &[u8],
     identifier: &str,
+    file_type: DocType,
 ) -> ApiResponse<()> {
     let stop_words = &state.stopwords;
     let glaff = &state.glaff;
@@ -169,7 +170,7 @@ fn index_file(
     let doc = Document {
         title: content.title.clone(),
         name: identifier.to_string(),
-        doctype: db::models::DocType::Online,
+        doctype: file_type,
         description: content.description.clone(),
     };
     db::add_document(conn, &doc, &content).map_err(|e| {
@@ -192,40 +193,48 @@ pub async fn index_upload(
     state: &State<ServerState>,
     mut file: TempFile<'_>,
     filename: String,
-    content_length: ContentLength,
 ) -> ApiResponse<()> {
     use sha256::digest;
-    let size: ByteUnit = content_length.0.into();
-
-    info!("Uploading a file! {} bytes", size);
-
-    file.move_copy_to("tmp/file.pdf")
+    file.move_copy_to("tmp/file")
         .await
         .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
     let file = std::fs::read("tmp/file")
         .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
-    std::fs::remove_file("tmp/file.pdf")
+    std::fs::remove_file("tmp/file")
         .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
+    info!("Deleted temporary file");
 
     let id = digest(&file as &[u8]);
-    let filename = format!("/{}-{}", id, filename);
+    let filename = format!("{}-{}", id, filename);
 
-    let response = state
+    info!("Uploading file {}", filename);
+    state
         .s3_bucket
-        .put_object(filename.clone(), file.as_slice())
+        .put_object(format!("/{}", filename.clone()), file.as_slice())
         .await
         .map_err(|e| {
+            info!("Failed to upload file: {}", e);
             Custom(
                 Status::InternalServerError,
-                format!("Failed to upload file: {}", e)
+                format!("Failed to upload file: {}", e),
             )
         })?;
-    info!("Response status code: {:?}", response.status_code());
 
     info!("Indexing {}", filename);
-    index_file(state, &file, id.as_str())?;
-
-    Ok(())
+    match index_file(state, &file, &filename, DocType::Offline) {
+        Ok(_) => Ok(()),
+        Err(e1) => match state
+            .s3_bucket
+            .delete_object(format!("/{}", filename))
+            .await
+        {
+            Ok(_) => Err(e1),
+            Err(e2) => Err(Custom(
+                Status::InternalServerError,
+                format!("{:?}\nAlso failed to remove remote file: {}", e1, e2),
+            )),
+        },
+    }
 }
 
 // TODO: Check if the URL is already in the database
@@ -243,7 +252,7 @@ pub async fn index_url(
     info!("== Downloading {}", &url);
     let document = fetch_content(&url).await?;
     info!("== Downloaded {}", &url);
-    index_file(state, &document, url.as_str())?;
+    index_file(state, &document, url.as_str(), DocType::Online)?;
     Ok(())
 }
 
