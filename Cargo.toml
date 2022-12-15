@@ -13,6 +13,7 @@ publish = false
 [dependencies]
 structopt = "0.3"
 csv = "1.1"
+sha256 = "1.1.1"
 
 # Database
 diesel = { version = "2.0.2", features = ["postgres", "extras"] }
@@ -32,9 +33,10 @@ pandoc = "0.8.10"
 poppler-rs = "0.20.0"
 
 # HTML request and parsing
-reqwest = { version = "0.11.12", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.11.13", features = ["blocking"] }
 html2text = "0.4.3"
 scraper = "0.13.0"
+rust-s3 = "0.32.3"
 
 # Logging
 tracing = "0.1.37"

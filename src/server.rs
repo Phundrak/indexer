@@ -3,25 +3,61 @@ use std::collections::HashMap;
 use color_eyre::eyre::Result;
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
+use rocket::fs::TempFile;
 use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket::State;
 use tracing::{debug, info};
 
+use crate::db::models::DocType;
 use crate::db::{self, models::Document};
 use crate::fileparser::get_content;
 use crate::kwparser;
 use crate::spelling::Dictionary;
 
+#[derive(Copy, Clone)]
+pub struct ContentLength(usize);
+
+#[derive(Debug)]
+pub enum ContentLengthError {
+    Missing,
+    Invalid,
+}
+
+use rocket::request::{FromRequest, Outcome, Request};
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for ContentLength {
+    type Error = ContentLengthError;
+
+    async fn from_request(
+        request: &'r Request<'_>,
+    ) -> Outcome<Self, Self::Error> {
+        match request.headers().get_one("Content-Length") {
+            None => Outcome::Failure((
+                Status::BadRequest,
+                ContentLengthError::Missing,
+            )),
+            Some(key) => match key.to_string().parse::<usize>() {
+                Ok(val) => Outcome::Success(ContentLength(val)),
+                Err(_) => Outcome::Failure((
+                    Status::BadRequest,
+                    ContentLengthError::Invalid,
+                )),
+            },
+        }
+    }
+}
+
 type DbPool = PooledConnection<ConnectionManager<PgConnection>>;
 
 #[allow(clippy::module_name_repetitions)]
 pub struct ServerState {
+    pub dictionary: Option<Dictionary>,
+    pub glaff: Option<HashMap<String, String>>,
     pub pool: Pool<ConnectionManager<PgConnection>>,
     pub stopwords: Vec<String>,
-    pub glaff: Option<HashMap<String, String>>,
-    pub dictionary: Option<Dictionary>,
+    pub s3_bucket: s3::Bucket,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -115,45 +151,118 @@ async fn fetch_content(url: &String) -> ApiResponse<Vec<u8>> {
 
 // Inserting into the database ////////////////////////////////////////////////
 
+fn index_file(
+    state: &State<ServerState>,
+    file: &[u8],
+    identifier: &str,
+    file_type: DocType,
+) -> ApiResponse<()> {
+    let stop_words = &state.stopwords;
+    let glaff = &state.glaff;
+    let content = get_content(file, stop_words, glaff)
+        .map_err(|e| Custom(Status::NotAcceptable, format!("{:?}", e)))?;
+    debug!("{:?}", content);
+    let conn = &mut state.pool.get().map_err(|e| {
+        api_error!(format!("Failed to connect to the database: {}", e))
+    })?;
+    info!("== Inserting {} in database", &identifier);
+
+    let doc = Document {
+        title: content.title.clone(),
+        name: identifier.to_string(),
+        doctype: file_type,
+        description: content.description.clone(),
+    };
+    db::add_document(conn, &doc, &content).map_err(|e| {
+        Custom(
+            Status::InternalServerError,
+            format!("Failed to insert URL {} as a document: {}", identifier, e),
+        )
+    })?;
+    info!("Indexed {}", identifier);
+    Ok(())
+}
+
+/// Upload and index a document
+///
+/// # Errors
+///
+/// TODO: I’ll document that later
+#[post("/docs/<filename>", data = "<file>")]
+pub async fn index_upload(
+    state: &State<ServerState>,
+    mut file: TempFile<'_>,
+    filename: String,
+) -> ApiResponse<()> {
+    use sha256::digest;
+    file.move_copy_to("tmp/file")
+        .await
+        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
+    let file = std::fs::read("tmp/file")
+        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
+    std::fs::remove_file("tmp/file")
+        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
+    info!("Deleted temporary file");
+
+    let id = digest(&file as &[u8]);
+    let filename = format!("{}-{}", id, filename);
+
+    info!("Uploading file {}", filename);
+    state
+        .s3_bucket
+        .put_object(format!("/{}", filename.clone()), file.as_slice())
+        .await
+        .map(|_| info!("Uploaded file!"))
+        .map_err(|e| {
+            info!("Failed to upload file: {}", e);
+            Custom(
+                Status::InternalServerError,
+                format!("Failed to upload file: {}", e),
+            )
+        })?;
+
+    info!("Indexing {}", filename);
+    match index_file(state, &file, &filename, DocType::Offline) {
+        Ok(_) => Ok(()),
+        Err(e1) => {
+            info!(
+                "Could not index file: {:?}. Deleting {} from s3 storage",
+                e1, filename
+            );
+            match state
+                .s3_bucket
+                .delete_object(format!("/{}", filename))
+                .await
+            {
+                Ok(_) => Err(e1),
+                Err(e2) => Err(Custom(
+                    Status::InternalServerError,
+                    format!(
+                        "{:?}\nAlso failed to remove remote file: {}",
+                        e1, e2
+                    ),
+                )),
+            }
+        }
+    }
+}
+
 // TODO: Check if the URL is already in the database
 /// Index a document and add it to the database
 ///
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[post("/doc?<url>")]
+#[post("/docs/url/<url>")]
 pub async fn index_url(
     url: String,
     state: &State<ServerState>,
 ) -> ApiResponse<()> {
-    info!("Indexing {}", &url);
+    info!("Indexing URL {}", &url);
     info!("== Downloading {}", &url);
     let document = fetch_content(&url).await?;
     info!("== Downloaded {}", &url);
-    let stop_words = &state.stopwords;
-    let glaff = &state.glaff;
-    let content = get_content(&document, stop_words, glaff)
-        .map_err(|e| Custom(Status::NotAcceptable, format!("{:?}", e)))?;
-    debug!("{:?}", content);
-    info!("== Downloaded {}", &url);
-    let conn = &mut state.pool.get().map_err(|e| {
-        api_error!(format!("Failed to connect to the database: {}", e))
-    })?;
-    info!("== Inserting {} in database", &url);
-
-    let doc = Document {
-        title: content.title.clone(),
-        name: url.clone(),
-        doctype: db::models::DocType::Online,
-        description: content.description.clone(),
-    };
-    db::add_document(conn, &doc, &content).map_err(|e| {
-        Custom(
-            Status::InternalServerError,
-            format!("Failed to insert URL {} as a document: {}", url, e),
-        )
-    })?;
-    info!("Indexed {}", &url);
+    index_file(state, &document, url.as_str(), DocType::Online)?;
     Ok(())
 }
 
@@ -164,7 +273,7 @@ pub async fn index_url(
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[delete("/doc?<id>")]
+#[delete("/docs/<id>")]
 pub fn delete_document(
     id: &str,
     state: &State<ServerState>,
@@ -282,7 +391,7 @@ pub fn search_query(
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[get("/doc")]
+#[get("/docs")]
 pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
     info!("Listing documents");
     let conn = &mut get_connector!(state);
@@ -294,7 +403,7 @@ pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[get("/keywords?<doc>")]
+#[get("/docs/<doc>/keywords")]
 pub fn document_list_keywords(
     doc: &str,
     state: &State<ServerState>,
