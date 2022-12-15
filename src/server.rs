@@ -53,14 +53,11 @@ type DbPool = PooledConnection<ConnectionManager<PgConnection>>;
 
 #[allow(clippy::module_name_repetitions)]
 pub struct ServerState {
-    pub appwrite_bucket: String,
-    pub appwrite_endpoint: String,
-    pub appwrite_key: String,
-    pub appwrite_project: String,
     pub dictionary: Option<Dictionary>,
     pub glaff: Option<HashMap<String, String>>,
     pub pool: Pool<ConnectionManager<PgConnection>>,
     pub stopwords: Vec<String>,
+    pub s3_bucket: s3::Bucket,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -190,66 +187,44 @@ fn index_file(
 /// # Errors
 ///
 /// TODO: I’ll document that later
-#[post("/doc", data = "<file>")]
+#[post("/doc?<filename>", data = "<file>")]
 pub async fn index_upload(
     state: &State<ServerState>,
     mut file: TempFile<'_>,
+    filename: String,
     content_length: ContentLength,
 ) -> ApiResponse<()> {
     use sha256::digest;
-    // let size = content_length.0.into::<ByteUnit>();
     let size: ByteUnit = content_length.0.into();
+
     info!("Uploading a file! {} bytes", size);
+
     file.move_copy_to("tmp/file.pdf")
         .await
         .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
-    let file = std::fs::read("tmp/file.pdf")
+    let file = std::fs::read("tmp/file")
         .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
+    std::fs::remove_file("tmp/file.pdf")
+        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
+
     let id = digest(&file as &[u8]);
-    index_file(state, &file, id.as_str())?;
+    let filename = format!("/{}-{}", id, filename);
 
-    let reqwest_client = reqwest::Client::new();
-
-    // Push to Appwrite
-    info!("Uploading to Appwrite bucket");
-    let mut params = HashMap::new();
-    params.insert("fileId", id.into_bytes());
-    params.insert("file", file);
-    params.insert("bucketId", state.appwrite_bucket.clone().into_bytes());
-    let res = reqwest_client
-        .post(format!(
-            "{}/storage/buckets/{}/files",
-            state.appwrite_endpoint, state.appwrite_bucket
-        ))
-        .header("X-Appwrite-Id", state.appwrite_key.clone())
-        .header("X-Appwrite-Project", state.appwrite_project.clone())
-        .header("Content-Type", "multipart/form-data")
-        .form(&params)
-        .send()
+    let response = state
+        .s3_bucket
+        .put_object(filename.clone(), file.as_slice())
         .await
         .map_err(|e| {
             Custom(
                 Status::InternalServerError,
-                format!("Failed to upload file to Appwrite: {}", e),
+                format!("Failed to upload file: {}", e)
             )
         })?;
-    info!("Appwrite: {:?}", res);
-    info!("Removing temporary file");
-    std::fs::remove_file("tmp/file.pdf")
-        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
-    // let file = file
-    //     .open(size)
-    //     .into_bytes()
-    //     .await
-    //     .map_err(|e| api_error!(e.to_string()))?;
-    // let file = if file.is_complete() {
-    //     file.into_inner()
-    // } else {
-    //     return Err(api_error!("Remaining bytes in stream".into()));
-    // };
-    // let id = digest(&file as &[u8]);
-    // TODO upload file to Appwrite
-    // index_file(state, &file as &[u8], &id)?;
+    info!("Response status code: {:?}", response.status_code());
+
+    info!("Indexing {}", filename);
+    index_file(state, &file, id.as_str())?;
+
     Ok(())
 }
 

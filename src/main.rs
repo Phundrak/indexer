@@ -71,6 +71,18 @@ async fn main() -> Result<()> {
     info!("Running database migrations");
     db::run_migrations(&mut pool.get()?)?;
 
+    let s3_bucket = s3::Bucket::new(
+        std::env::var("S3_BUCKET_ID")
+            .expect("S3_BUCKET_ID must be set!")
+            .as_str(),
+        s3::region::Region::Custom {
+            region: std::env::var("S3_REGION").expect("S3_REGION must be set!"),
+            endpoint: std::env::var("S3_ENDPOINT")
+                .expect("S3_ENDPOINT must be set!"),
+        },
+        s3::creds::Credentials::default()?,
+    )?;
+
     info!("Launching server");
     #[allow(clippy::let_underscore_drop)]
     let _ = rocket::build()
@@ -78,8 +90,8 @@ async fn main() -> Result<()> {
             "/",
             routes![
                 // POST
-                server::index_url, // /doc?url=:url
-                server::index_upload,   // /doc + binary file
+                server::index_url,    // /doc?url=:url
+                server::index_upload, // /doc + binary file
                 // DELETE
                 server::delete_document, // /doc?id=:id
                 // GET
@@ -91,14 +103,11 @@ async fn main() -> Result<()> {
         )
         .attach(cors)
         .manage(server::ServerState {
+            dictionary,
+            glaff,
             pool,
             stopwords,
-            glaff,
-            dictionary,
-            appwrite_bucket: std::env::var("APPWRITE_BUCKET")?,
-            appwrite_key: std::env::var("APPWRITE_KEY")?,
-            appwrite_endpoint: std::env::var("APPWRITE_ENDPOINT")?,
-            appwrite_project: std::env::var("APPWRITE_PROJECT")?,
+            s3_bucket,
         })
         .launch()
         .await?;
