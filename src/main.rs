@@ -89,16 +89,13 @@ async fn main() -> Result<()> {
         .mount(
             "/",
             routes![
-                // POST
-                server::index_url,    // /doc?url=:url
-                server::index_upload, // /doc + binary file
-                // DELETE
-                server::delete_document, // /doc?id=:id
-                // GET
-                server::search_query, // /searchy?query=:query
-                server::list_docs,    // /doc
-                server::document_list_keywords, // /keywords?doc=:id
-                server::spelling_word, // /spelling/:word
+                server::list_docs,              // GET    /docs
+                server::index_upload,           // POST   /docs/:filename + binary file
+                server::index_url,              // POST   /docs/url/:url
+                server::delete_document,        // DELETE /docs/:id
+                server::document_list_keywords, // GET    /docs/:id/keywords
+                server::search_query,           // GET    /search/:query
+                server::spelling_word,          // GET    /spelling/:word
             ],
         )
         .attach(cors)

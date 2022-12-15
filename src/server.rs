@@ -187,7 +187,7 @@ fn index_file(
 /// # Errors
 ///
 /// TODO: I’ll document that later
-#[post("/doc?<filename>", data = "<file>")]
+#[post("/docs/<filename>", data = "<file>")]
 pub async fn index_upload(
     state: &State<ServerState>,
     mut file: TempFile<'_>,
@@ -234,7 +234,7 @@ pub async fn index_upload(
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[post("/doc?<url>")]
+#[post("/docs/url/<url>")]
 pub async fn index_url(
     url: String,
     state: &State<ServerState>,
@@ -254,7 +254,7 @@ pub async fn index_url(
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[delete("/doc?<id>")]
+#[delete("/docs/<id>")]
 pub fn delete_document(
     id: &str,
     state: &State<ServerState>,
@@ -367,7 +367,7 @@ pub fn search_query(
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[get("/doc")]
+#[get("/docs")]
 pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
     info!("Listing documents");
     let conn = &mut get_connector!(state);
@@ -379,7 +379,7 @@ pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[get("/keywords?<doc>")]
+#[get("/docs/<doc>/keywords")]
 pub fn document_list_keywords(
     doc: &str,
     state: &State<ServerState>,
