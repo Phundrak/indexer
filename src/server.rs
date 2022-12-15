@@ -212,6 +212,7 @@ pub async fn index_upload(
         .s3_bucket
         .put_object(format!("/{}", filename.clone()), file.as_slice())
         .await
+        .map(|_| info!("Uploaded file!"))
         .map_err(|e| {
             info!("Failed to upload file: {}", e);
             Custom(
@@ -223,17 +224,26 @@ pub async fn index_upload(
     info!("Indexing {}", filename);
     match index_file(state, &file, &filename, DocType::Offline) {
         Ok(_) => Ok(()),
-        Err(e1) => match state
-            .s3_bucket
-            .delete_object(format!("/{}", filename))
-            .await
-        {
-            Ok(_) => Err(e1),
-            Err(e2) => Err(Custom(
-                Status::InternalServerError,
-                format!("{:?}\nAlso failed to remove remote file: {}", e1, e2),
-            )),
-        },
+        Err(e1) => {
+            info!(
+                "Could not index file: {:?}. Deleting {} from s3 storage",
+                e1, filename
+            );
+            match state
+                .s3_bucket
+                .delete_object(format!("/{}", filename))
+                .await
+            {
+                Ok(_) => Err(e1),
+                Err(e2) => Err(Custom(
+                    Status::InternalServerError,
+                    format!(
+                        "{:?}\nAlso failed to remove remote file: {}",
+                        e1, e2
+                    ),
+                )),
+            }
+        }
     }
 }
 
