@@ -212,6 +212,10 @@ pub async fn index_upload(
 
     // Push to Appwrite
     info!("Uploading to Appwrite bucket");
+    let mut params = HashMap::new();
+    params.insert("fileId", id.into_bytes());
+    params.insert("file", file);
+    params.insert("bucketId", state.appwrite_bucket.clone().into_bytes());
     let res = reqwest_client
         .post(format!(
             "{}/storage/buckets/{}/files",
@@ -219,8 +223,8 @@ pub async fn index_upload(
         ))
         .header("X-Appwrite-Id", state.appwrite_key.clone())
         .header("X-Appwrite-Project", state.appwrite_project.clone())
-        .form(&[("fileId", id)])
-        .body(file)
+        .header("Content-Type", "multipart/form-data")
+        .form(&params)
         .send()
         .await
         .map_err(|e| {

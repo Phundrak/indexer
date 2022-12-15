@@ -203,6 +203,9 @@ pub fn keywords_search(
 
 /// Add a document to the indexer
 ///
+/// Add a document’s description to the database as well as its
+/// keywords
+///
 /// # Errors
 ///
 /// Errors may be returned by Diesel, forward them to the function
