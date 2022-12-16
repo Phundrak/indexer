@@ -16,38 +16,9 @@ use crate::fileparser::get_content;
 use crate::kwparser;
 use crate::spelling::Dictionary;
 
-#[derive(Copy, Clone)]
-pub struct ContentLength(usize);
+pub mod s3;
 
-#[derive(Debug)]
-pub enum ContentLengthError {
-    Missing,
-    Invalid,
-}
-
-use rocket::request::{FromRequest, Outcome, Request};
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for ContentLength {
-    type Error = ContentLengthError;
-
-    async fn from_request(
-        request: &'r Request<'_>,
-    ) -> Outcome<Self, Self::Error> {
-        match request.headers().get_one("Content-Length") {
-            None => Outcome::Failure((
-                Status::BadRequest,
-                ContentLengthError::Missing,
-            )),
-            Some(key) => match key.to_string().parse::<usize>() {
-                Ok(val) => Outcome::Success(ContentLength(val)),
-                Err(_) => Outcome::Failure((
-                    Status::BadRequest,
-                    ContentLengthError::Invalid,
-                )),
-            },
-        }
-    }
-}
+extern crate s3 as s3rust;
 
 type DbPool = PooledConnection<ConnectionManager<PgConnection>>;
 
@@ -57,7 +28,7 @@ pub struct ServerState {
     pub glaff: Option<HashMap<String, String>>,
     pub pool: Pool<ConnectionManager<PgConnection>>,
     pub stopwords: Vec<String>,
-    pub s3_bucket: s3::Bucket,
+    pub s3_bucket: s3rust::Bucket,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -183,6 +154,23 @@ fn index_file(
     Ok(())
 }
 
+fn simple_internal_error<E>(e: E) -> Custom<String>
+where
+    E: ToString,
+{
+    Custom(Status::InternalServerError, e.to_string())
+}
+
+async fn file_to_vec(mut file: TempFile<'_>) -> ApiResponse<Vec<u8>> {
+    file.move_copy_to("tmp/file")
+        .await
+        .map_err(simple_internal_error)?;
+    let file = std::fs::read("tmp/file").map_err(simple_internal_error)?;
+    std::fs::remove_file("tmp/file").map_err(simple_internal_error)?;
+    debug!("Deleted temporary file");
+    Ok(file)
+}
+
 /// Upload and index a document
 ///
 /// # Errors
@@ -191,58 +179,33 @@ fn index_file(
 #[post("/docs/<filename>", data = "<file>")]
 pub async fn index_upload(
     state: &State<ServerState>,
-    mut file: TempFile<'_>,
+    file: TempFile<'_>,
     filename: String,
 ) -> ApiResponse<()> {
     use sha256::digest;
-    file.move_copy_to("tmp/file")
-        .await
-        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
-    let file = std::fs::read("tmp/file")
-        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
-    std::fs::remove_file("tmp/file")
-        .map_err(|e| Custom(Status::InternalServerError, e.to_string()))?;
-    info!("Deleted temporary file");
-
+    let file = file_to_vec(file).await?;
     let id = digest(&file as &[u8]);
     let filename = format!("{}-{}", id, filename);
 
     info!("Uploading file {}", filename);
-    state
-        .s3_bucket
-        .put_object(format!("/{}", filename.clone()), file.as_slice())
-        .await
-        .map(|_| info!("Uploaded file!"))
-        .map_err(|e| {
-            info!("Failed to upload file: {}", e);
-            Custom(
-                Status::InternalServerError,
-                format!("Failed to upload file: {}", e),
-            )
-        })?;
+    s3::upload_file(state, filename.clone(), file.as_slice()).await?;
 
     info!("Indexing {}", filename);
     match index_file(state, &file, &filename, DocType::Offline) {
         Ok(_) => Ok(()),
-        Err(e1) => {
+        Err(error_index) => {
             info!(
                 "Could not index file: {:?}. Deleting {} from s3 storage",
-                e1, filename
+                error_index, filename
             );
-            match state
-                .s3_bucket
-                .delete_object(format!("/{}", filename))
+            s3::delete_file(state, filename)
                 .await
-            {
-                Ok(_) => Err(e1),
-                Err(e2) => Err(Custom(
-                    Status::InternalServerError,
-                    format!(
-                        "{:?}\nAlso failed to remove remote file: {}",
-                        e1, e2
-                    ),
-                )),
-            }
+                .map_err(|error_delete| {
+                    Custom(
+                        Status::InternalServerError,
+                        format!("{:?}\tAND\t{}", error_index, error_delete.1),
+                    )
+                })
         }
     }
 }
@@ -253,7 +216,7 @@ pub async fn index_upload(
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[post("/docs/url/<url>")]
+#[post("/docs?<url>")]
 pub async fn index_url(
     url: String,
     state: &State<ServerState>,
@@ -392,7 +355,9 @@ pub fn search_query(
 ///
 /// Errors might originate from the database, Diesel, or Rocket
 #[get("/docs")]
-pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
+pub fn list_docs(
+    state: &State<ServerState>,
+) -> ApiResponse<Json<Vec<Document>>> {
     info!("Listing documents");
     let conn = &mut get_connector!(state);
     json_val_or_error!(db::list_documents(conn))
@@ -403,7 +368,7 @@ pub fn list_docs(state: &State<ServerState>) -> ApiResponse<Json<Vec<String>>> {
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[get("/docs/<doc>/keywords")]
+#[get("/keywords?<doc>")]
 pub fn document_list_keywords(
     doc: &str,
     state: &State<ServerState>,

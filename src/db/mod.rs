@@ -247,9 +247,9 @@ pub fn add_document(
 ///
 /// If any error is returned by the database, forward it to the
 /// function calling `list_documents`
-pub fn list_documents(conn: &mut PgConnection) -> DatabaseResult<Vec<String>> {
+pub fn list_documents(conn: &mut PgConnection) -> DatabaseResult<Vec<Document>> {
     use documents::dsl;
-    dsl::documents.select(dsl::name).load(conn)
+    dsl::documents.load(conn)
 }
 
 /// Delete a document from the database

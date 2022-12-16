@@ -19,6 +19,12 @@ mod kwparser;
 mod server;
 mod spelling;
 
+macro_rules! get_env {
+    ($name:literal) => {
+        std::env::var($name).expect(format!("{} must be set!", $name).as_str())
+    };
+}
+
 #[derive(StructOpt, Debug)]
 #[structopt(name = "indexer")]
 struct Opt {
@@ -68,20 +74,14 @@ async fn main() -> Result<()> {
     let allowed_origins = AllowedOrigins::some_regex(&[".*"]);
     let cors = make_cors(allowed_origins)?;
     let pool = db::get_connection_pool();
+    let s3_bucket = server::s3::connect_to_bucket(
+        get_env!("S3_BUCKET_ID").as_str(),
+        get_env!("S3_REGION"),
+        get_env!("S3_ENDPOINT"),
+    )?;
+
     info!("Running database migrations");
     db::run_migrations(&mut pool.get()?)?;
-
-    let s3_bucket = s3::Bucket::new(
-        std::env::var("S3_BUCKET_ID")
-            .expect("S3_BUCKET_ID must be set!")
-            .as_str(),
-        s3::region::Region::Custom {
-            region: std::env::var("S3_REGION").expect("S3_REGION must be set!"),
-            endpoint: std::env::var("S3_ENDPOINT")
-                .expect("S3_ENDPOINT must be set!"),
-        },
-        s3::creds::Credentials::default()?,
-    )?;
 
     info!("Launching server");
     #[allow(clippy::let_underscore_drop)]
@@ -90,12 +90,12 @@ async fn main() -> Result<()> {
             "/",
             routes![
                 server::list_docs,              // GET    /docs
-                server::index_upload,           // POST   /docs/:filename + binary file
-                server::index_url,              // POST   /docs/url/:url
-                server::delete_document,        // DELETE /docs/:id
+                server::index_upload, // POST   /docs/:filename + binary file
+                server::index_url,    // POST   /docs?url=:url
+                server::delete_document, // DELETE /docs/:id
                 server::document_list_keywords, // GET    /docs/:id/keywords
-                server::search_query,           // GET    /search/:query
-                server::spelling_word,          // GET    /spelling/:word
+                server::search_query, // GET    /search/:query
+                server::spelling_word, // GET    /spelling/:word
             ],
         )
         .attach(cors)
