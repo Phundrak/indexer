@@ -44,7 +44,7 @@ fn make_cors(
             .into_iter()
             .map(From::from)
             .collect(),
-        allowed_headers: AllowedHeaders::some(&["Authorization", "Accept"]),
+        allowed_headers: AllowedHeaders::some(&["Authorization", "Accept", "Content-Type"]),
         allow_credentials: true,
         ..Default::default()
     }
