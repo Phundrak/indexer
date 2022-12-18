@@ -19,7 +19,7 @@ mod kwparser;
 mod server;
 mod spelling;
 
-macro_rules! get_env {
+macro_rules! from_env {
     ($name:literal) => {
         std::env::var($name).expect(format!("{} must be set!", $name).as_str())
     };
@@ -75,9 +75,9 @@ async fn main() -> Result<()> {
     let cors = make_cors(allowed_origins)?;
     let pool = db::get_connection_pool();
     let s3_bucket = server::s3::connect_to_bucket(
-        get_env!("S3_BUCKET_ID").as_str(),
-        get_env!("S3_REGION"),
-        get_env!("S3_ENDPOINT"),
+        from_env!("S3_BUCKET_ID").as_str(),
+        from_env!("S3_REGION"),
+        from_env!("S3_ENDPOINT"),
     )?;
 
     info!("Running database migrations");

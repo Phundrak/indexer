@@ -10,8 +10,6 @@ use tracing::debug;
 
 use std::collections::HashMap;
 
-use std::env;
-
 pub mod models;
 pub mod schema;
 
@@ -65,7 +63,7 @@ pub fn run_migrations(
 pub fn get_connection_pool() -> Pool<ConnectionManager<PgConnection>> {
     dotenv().ok();
     let database_url =
-        env::var("DATABASE_URL").expect("DATABASE_URL must be set!");
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set!");
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     Pool::builder()
         .test_on_check_out(true)
@@ -247,7 +245,9 @@ pub fn add_document(
 ///
 /// If any error is returned by the database, forward it to the
 /// function calling `list_documents`
-pub fn list_documents(conn: &mut PgConnection) -> DatabaseResult<Vec<Document>> {
+pub fn list_documents(
+    conn: &mut PgConnection,
+) -> DatabaseResult<Vec<Document>> {
     use documents::dsl;
     dsl::documents.load(conn)
 }
