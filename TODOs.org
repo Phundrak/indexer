@@ -12,23 +12,57 @@ Use rocket.rs to server a REST API frontends can call.
 ** TODO Extract native description of the file
 ** TODO Create a custom description if no native description exists
 Get the first paragraph, cut it at 280 characters max.
-* TODO Index local files [0/2]
-** TODO Put them in a storage directory once parsed
+* TODO Index local files [2/3]
+** DONE Put them in a storage directory once parsed
+CLOSED: [2022-12-17 Sat 18:23]
 Can be done with Appwrite
-** TODO Make them available for download
-* TODO Support different types of files [1/5]
+
+Currently done with S3
+
+Maybe set where to upload the file based on an argument or a feature?
+** DONE Make them available for download
+CLOSED: [2022-12-17 Sat 18:23]
+** TODO Make sure each file uploaded is unique
+Add a CHECKSUM column in the database. If the checksum is already in
+the database, refuse the file and state it is already indexed.
+
+The current naming scheme for files on S3 buckets is
+~<SHA256>-<filename>~. The filename should be encoded as a URI would be
+to avoid any issue with its name in URLs. The checksum is here to
+avoid any name collision.
+
+* TODO Support different types of files [2/5]
 ** DONE HTML
 CLOSED: [2022-11-14 Mon 13:06]
-** TODO PDF
+** DONE PDF
+CLOSED: [2022-12-17 Sat 18:23]
 ** TODO TXT
+The title of a TXT file should be its first line. If the line is too
+long, truncate it at a set amount of characters (80?).
+
+The description should be a set amount of characters from the second
+line, or from just after the truncation of the title.
+
 ** TODO Pandoc
 Use crate [[https://crates.io/crates/pandoc][pandoc]].
+
+Convert Pandoc-supported files into HTML files and parse them as such.
+Store the original file as-is.
+
 ** TODO FFMPEG
+Parse subtitles from FFMPEG-supported files.
+
 * TODO Make indexing files only available to an admin account
-* TODO Give keywords a heavier weight
+Done on the front-end’s side. However, anyone who can access the
+backend’s API can still index and delete documents.
+
+* DONE Give keywords a heavier weight
+CLOSED: [2022-12-17 Sat 18:25]
 Give a default weight modifier of 2
-* TODO Refactor to separate server, keyword parser, and file to text parser
-* TODO Try to handle typos
+* DONE Refactor to separate server, keyword parser, and file to text parser
+CLOSED: [2022-12-17 Sat 18:25]
+* DONE Try to handle typos
+CLOSED: [2022-12-17 Sat 18:25]
 Inspiration:
 - http://norvig.com/spell-correct.html :: algorithm description in Python
 - https://docs.rs/spellcheck/latest/spellcheck/ :: old Rust implementation
