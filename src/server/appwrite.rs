@@ -1,20 +1,50 @@
+use color_eyre::eyre::Result;
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket::serde::Deserialize;
+use tracing::info;
 
 use super::ServerState;
 
-#[derive(Clone, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[serde(crate = "rocket::serde")]
-struct APISession {
-    #[serde(rename(deserialize = "$id"))]
-    id: String,
+struct UserSessions {
+    total: i64,
+    sessions: Vec<Sessions>,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[serde(crate = "rocket::serde")]
-struct APIUserSession {
-    session: APISession,
+struct Sessions {
+    #[serde(rename = "$id")]
+    id: String,
+    #[serde(rename = "$createdAt")]
+    created_at: String,
+    user_id: String,
+    expire: String,
+    provider: String,
+    provider_uid: String,
+    provider_access_token: String,
+    provider_access_token_expiry: String,
+    provider_refresh_token: String,
+    ip: String,
+    os_code: String,
+    os_name: String,
+    os_version: String,
+    client_type: String,
+    client_code: String,
+    client_name: String,
+    client_version: String,
+    client_engine: String,
+    client_engine_version: String,
+    device_name: String,
+    device_brand: String,
+    device_model: String,
+    country_code: String,
+    country_name: String,
+    current: bool,
 }
 
 /// HTTP header for a user's session
@@ -38,7 +68,6 @@ impl<'r> FromRequest<'r> for UserSession<'r> {
     async fn from_request(
         request: &'r Request<'_>,
     ) -> Outcome<Self, Self::Error> {
-
         /// Retrieve all sesssions from user with `userId`. If
         /// `userSessionId` is among them, then the user is connected
         /// and return true.
@@ -46,7 +75,7 @@ impl<'r> FromRequest<'r> for UserSession<'r> {
             user_id: &str,
             user_session_id: &str,
             state: &ServerState,
-        ) -> bool {
+        ) -> Result<bool> {
             let client = reqwest::Client::new();
             let url = format!(
                 "{}/users/{}/sessions",
@@ -58,25 +87,13 @@ impl<'r> FromRequest<'r> for UserSession<'r> {
                 .header("X-Appwrite-Project", state.appwrite_project.clone())
                 .header("Content-Type", "application/json")
                 .send()
-                .await;
-            if response.is_err() {
-                info!(
-                    "Could not perform GET request to {}: {}",
-                    url,
-                    response.err().unwrap()
-                );
-                return false;
-            }
-            match response.unwrap().json::<Vec<APIUserSession>>().await {
-                Err(e) => {
-                    info!(
-                        "Could not retrieve JSON response from {}: {}",
-                        url, e
-                    );
-                    false
-                }
-                Ok(val) => val.iter().any(|s| s.session.id == user_session_id),
-            }
+                .await?
+                .json::<UserSessions>()
+                .await?;
+            Ok(response
+                .sessions
+                .iter()
+                .any(|session| session.id == user_session_id))
         }
 
         let server_state = request.rocket().state::<ServerState>().unwrap();
@@ -95,13 +112,22 @@ impl<'r> FromRequest<'r> for UserSession<'r> {
                 }
                 let user_id = key[0];
                 let user_session_id = key[1];
-                if is_valid(user_id, user_session_id, server_state).await {
-                    Outcome::Success(UserSession(user_session_id))
-                } else {
-                    Outcome::Failure((
-                        Status::BadRequest,
-                        UserSessionError::Invalid,
-                    ))
+                match is_valid(user_id, user_session_id, server_state).await {
+                    Ok(true) => Outcome::Success(UserSession(user_session_id)),
+                    Ok(false) => {
+                        info!("Could not find user session in user sessions.");
+                        Outcome::Failure((
+                            Status::BadRequest,
+                            UserSessionError::Invalid,
+                        ))
+                    }
+                    Err(e) => {
+                        info!("Failed to verify user session: {}", e);
+                        Outcome::Failure((
+                            Status::BadRequest,
+                            UserSessionError::Invalid,
+                        ))
+                    }
                 }
             }
         }
