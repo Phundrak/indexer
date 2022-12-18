@@ -16,7 +16,10 @@ use crate::fileparser::get_content;
 use crate::kwparser;
 use crate::spelling::Dictionary;
 
+use self::appwrite::UserSession;
+
 pub mod s3;
+mod appwrite;
 
 extern crate s3 as s3rust;
 
@@ -29,6 +32,9 @@ pub struct ServerState {
     pub pool: Pool<ConnectionManager<PgConnection>>,
     pub stopwords: Vec<String>,
     pub s3_bucket: s3rust::Bucket,
+    pub appwrite_endpoint: String,
+    pub appwrite_project: String,
+    pub appwrite_key: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -154,6 +160,15 @@ fn index_file(
     Ok(())
 }
 
+/// Generate a simple 500 error
+///
+/// Just wrap an error as a string in a Rocket 500 status.
+///
+/// The needless pass by value is allowed here since the function can
+/// be called in a simple manner with
+/// `.map_err(simple_internal_error)`, which won’t allow to pass `e`
+/// as a reference.
+#[allow(clippy::needless_pass_by_value)]
 fn simple_internal_error<E>(e: E) -> Custom<String>
 where
     E: ToString,
@@ -173,14 +188,25 @@ async fn file_to_vec(mut file: TempFile<'_>) -> ApiResponse<Vec<u8>> {
 
 /// Upload and index a document
 ///
+/// The `file` transmitted as pure data is uploaded to a S3 bucket and
+/// then parsed. If any error arise when indexing the document, the
+/// object on the S3 bucket is then deleted. Otherwise, its name on
+/// the bucket, its sha256 sum concatenated with its filename, is
+/// stored as the document’s name.
+///
 /// # Errors
 ///
-/// TODO: I’ll document that later
-#[post("/docs/<filename>", data = "<file>")]
+/// If any error arise from the indexation of the file, if the file
+/// fails to upload to the S3 bucket or fails to be deleted from it,
+/// the error is wrapped in a 500 Rocket error and returned to the
+/// user. For more information, see `s3::upload_fle`,
+/// `s3::delete_file`, and `index_file`.
+#[post("/docs/file/<filename>", data = "<file>")]
 pub async fn index_upload(
     state: &State<ServerState>,
     file: TempFile<'_>,
     filename: String,
+    _auth: UserSession<'_>,
 ) -> ApiResponse<()> {
     use sha256::digest;
     let file = file_to_vec(file).await?;
@@ -213,14 +239,22 @@ pub async fn index_upload(
 // TODO: Check if the URL is already in the database
 /// Index a document and add it to the database
 ///
+/// The URL **must** be an encoded url such what `encodeURIComponent`
+/// in Javascript results to.
+///
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[post("/docs?<url>")]
+#[post("/docs/url/<url>")]
 pub async fn index_url(
     url: String,
     state: &State<ServerState>,
+    _auth: UserSession<'_>,
 ) -> ApiResponse<()> {
+    use url::form_urlencoded::parse;
+    let url = parse(url.as_bytes())
+        .map(|(k, v)| [k, v].concat())
+        .collect();
     info!("Indexing URL {}", &url);
     info!("== Downloading {}", &url);
     let document = fetch_content(&url).await?;
@@ -240,6 +274,7 @@ pub async fn index_url(
 pub fn delete_document(
     id: &str,
     state: &State<ServerState>,
+    _auth: UserSession<'_>,
 ) -> ApiResponse<()> {
     info!("Deleting document \"{}\"", id);
     let conn = &mut get_connector!(state);
@@ -368,7 +403,7 @@ pub fn list_docs(
 /// # Errors
 ///
 /// Errors might originate from the database, Diesel, or Rocket
-#[get("/keywords?<doc>")]
+#[get("/docs/<doc>/keywords")]
 pub fn document_list_keywords(
     doc: &str,
     state: &State<ServerState>,

@@ -89,13 +89,13 @@ async fn main() -> Result<()> {
         .mount(
             "/",
             routes![
-                server::list_docs,              // GET    /docs
-                server::index_upload, // POST   /docs/:filename + binary file
-                server::index_url,    // POST   /docs?url=:url
-                server::delete_document, // DELETE /docs/:id
+                server::list_docs,       // GET    /docs
+                server::index_upload,    // POST   /docs/file/:filename + binary file + AUTH
+                server::index_url,       // POST   /docs/url/:url + AUTH
+                server::delete_document, // DELETE /docs/:id + AUTH
                 server::document_list_keywords, // GET    /docs/:id/keywords
-                server::search_query, // GET    /search/:query
-                server::spelling_word, // GET    /spelling/:word
+                server::search_query,    // GET    /search/:query
+                server::spelling_word,   // GET    /spelling/:word
             ],
         )
         .attach(cors)
@@ -105,6 +105,9 @@ async fn main() -> Result<()> {
             pool,
             stopwords,
             s3_bucket,
+            appwrite_endpoint: from_env!("APPWRITE_ENDPOINT"),
+            appwrite_project: from_env!("APPWRITE_PROJECT"),
+            appwrite_key: from_env!("APPWRITE_API_KEY")
         })
         .launch()
         .await?;

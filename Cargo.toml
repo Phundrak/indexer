@@ -33,6 +33,7 @@ pandoc = "0.8.10"
 poppler-rs = "0.20.0"
 
 # HTML request and parsing
+url = { version = "2", features = ["serde"] }
 reqwest = { version = "0.11.13", features = ["blocking"] }
 html2text = "0.4.3"
 scraper = "0.13.0"
