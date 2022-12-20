@@ -1,0 +1,5 @@
+[default]
+limits = { form = "64 kB", json = "1 MiB", file = "100 MiB" }
+
+[debug.limits]
+file = "1 GiB"
