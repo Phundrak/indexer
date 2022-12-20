@@ -44,6 +44,7 @@ pub struct RankedDoc {
     pub title: String,
     pub description: String,
     pub hits: i32,
+    pub online: bool
 }
 
 #[derive(Serialize, Deserialize)]
@@ -251,10 +252,6 @@ pub async fn index_url(
     state: &State<ServerState>,
     _auth: UserSession<'_>,
 ) -> ApiResponse<()> {
-    use url::form_urlencoded::parse;
-    let url = parse(url.as_bytes())
-        .map(|(k, v)| [k, v].concat())
-        .collect();
     info!("Indexing URL {}", &url);
     info!("== Downloading {}", &url);
     let document = fetch_content(&url).await?;

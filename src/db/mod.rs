@@ -208,6 +208,7 @@ pub fn keywords_search(
             title: k.0.title.clone(),
             description: k.0.description.clone(),
             hits: k.1.to_owned(),
+            online: k.0.doctype == DocType::Online
         })
         .collect::<Vec<RankedDoc>>())
 }
