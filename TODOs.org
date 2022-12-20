@@ -8,9 +8,12 @@ Use diesel.rs to link Indexer to a PostgreSQL database.
 * DONE Implement a RESTful web server around Indexer
 CLOSED: [2022-10-31 Mon 06:04]
 Use rocket.rs to server a REST API frontends can call.
-* TODO Get description of the file [0/2]
-** TODO Extract native description of the file
-** TODO Create a custom description if no native description exists
+* DONE Get description of the file [2/2]
+CLOSED: [2022-12-20 Tue 18:42]
+** DONE Extract native description of the file
+CLOSED: [2022-12-20 Tue 18:42]
+** DONE Create a custom description if no native description exists
+CLOSED: [2022-12-20 Tue 18:42]
 Get the first paragraph, cut it at 280 characters max.
 * TODO Index local files [2/3]
 ** DONE Put them in a storage directory once parsed
@@ -52,9 +55,12 @@ Store the original file as-is.
 ** TODO FFMPEG
 Parse subtitles from FFMPEG-supported files.
 
-* TODO Make indexing files only available to an admin account
+* DONE Make indexing files only available to an admin account
+CLOSED: [2022-12-20 Tue 18:41]
 Done on the front-end’s side. However, anyone who can access the
 backend’s API can still index and delete documents.
+
+Also done on backend side with the ~X-User-Auth~ HTTP header.
 
 * DONE Give keywords a heavier weight
 CLOSED: [2022-12-17 Sat 18:25]
