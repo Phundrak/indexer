@@ -125,30 +125,8 @@ lemma.
 ** API
 More details soon.
 
-** Roadmap [3/6]
-- [-] Index files [1/2]
-  - [X] Online files
-  - [ ] Local files
-- [-] Read other formats than plaintext [2/5]
-  - [X] HTML
-  - [X] PDF
-  - [ ] DOC/DOCX
-  - [ ] ODT
-  - [ ] TXT
-- [X] Store the GLÀFF in a database
-- [X] Store results is a database
-- [X] Implement a spellcheck on user search queries
-- [-] Make a dedicated web interface [3/6]
-  - [X] Access the database through a webserver
-  - [X] Parse web pages
-  - [X] Search for keywords through a web interface
-  - [ ] Display a word cloud when showing a detailed view of an indexed
-    file
-  - [ ] Handle user authentification
-  - [ ] Restrict some features to authentificated users [0/3]
-    - [ ] File indexation
-    - [ ] File update
-    - [ ] File deletion
+* Roadmap
+See the [[file:TODOs.org][TODOs]] file.
 
 * License
 This repository is licensed under the GPL-3.0 license. You can find
