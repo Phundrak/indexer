@@ -269,13 +269,18 @@ pub async fn index_url(
 ///
 /// Errors might originate from the database, Diesel, or Rocket
 #[delete("/docs/<id>")]
-pub fn delete_document(
+pub async fn delete_document(
     id: &str,
     state: &State<ServerState>,
     _auth: UserSession<'_>,
 ) -> ApiResponse<()> {
     info!("Deleting document \"{}\"", id);
     let conn = &mut get_connector!(state);
+    if let Some(filename) = db::get_s3_filename(conn, id) {
+        s3::delete_file(state, filename).map_err(|e| {
+            Custom(Status::InternalServerError, format!("Failed to delete remote file in S3 bucket: {e:?}"))
+        }).await?;
+    }
     db::delete_document(conn, id)
         .map(|_| {
             info!("Deleted document \"{}\"", id);

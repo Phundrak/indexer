@@ -268,3 +268,36 @@ pub fn delete_document(
     diesel::delete(dsl::documents.find(document)).execute(conn)?;
     Ok(())
 }
+
+/// Get a specific document from database
+///
+/// Get a document by name in the database and return it as-is to the
+/// caller function.
+pub fn get_document(conn: &mut PgConnection, id: &str) -> Option<Document> {
+    use documents::dsl;
+    match dsl::documents.find(id.to_string()).first::<Document>(conn) {
+        Ok(document) => Some(document),
+        Err(diesel::NotFound) => None,
+        Err(e) => {
+            info!("Failed to retrieve document {id} from database: {e:?}");
+            None
+        }
+    }
+}
+
+/// Retrieve the S3 filename of a document
+///
+/// If a document’s primary key matches the argument `id` and that
+/// document is a document stored on the S3 remote storage, return its
+/// filename.
+pub fn get_s3_filename(conn: &mut PgConnection, id: &str) -> Option<String> {
+    if let Some(document) = get_document(conn, id) {
+        if document.doctype == DocType::Online {
+            Some(document.name)
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
