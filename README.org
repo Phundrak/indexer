@@ -132,9 +132,10 @@ See the [[file:TODOs.org][TODOs]] file.
 This repository is licensed under the GPL-3.0 license. You can find
 the full text in the file [[file:LICENSE][LICENSE]].
 
-The example stopwords list for French comes from the [[http://members.unine.ch/jacques.savoy/clef/index.html][Université de
-Neuchâtel]]. It is not covered by the repository’s license but by the
-BSD License. See its homepage.
+The file [[file:input/stopwords.txt][stopwords.txt]] is the result of merging the French, English,
+Spanish, Italian, Portuguese, and German stopword lists from the
+[[http://members.unine.ch/jacques.savoy/clef/index.html][Université de Neuchâtel]]. It is not covered by the repository’s license
+but by the BSD License. See their homepage.
 
 This program can be used with GLÀFF in order to further reduce the
 amount of keywords found in a document. GLÀFF is released by the
