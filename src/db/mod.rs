@@ -190,23 +190,8 @@ pub fn keywords_search(
     Ok(docs
         .iter()
         .map(|k| RankedDoc {
-            doc: k.0.name.clone(),
-            url: if k.0.doctype == DocType::Online {
-                k.0.name.clone()
-            } else {
-                format!(
-                    "https://{}.{}/{}",
-                    std::env::var("S3_BUCKET_ID")
-                        .expect("S3_BUCKET_ID must be set!"),
-                    std::env::var("S3_ENDPOINT")
-                        .expect("S3_ENDPOINT must be set!"),
-                    k.0.name.clone()
-                )
-            },
-            title: k.0.title.clone(),
-            description: k.0.description.clone(),
-            hits: k.1.to_owned(),
-            online: k.0.doctype == DocType::Online,
+            hits: Some(k.1.to_owned()),
+            ..k.0.clone().into()
         })
         .collect::<Vec<RankedDoc>>())
 }

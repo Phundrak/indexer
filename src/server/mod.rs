@@ -44,8 +44,32 @@ pub struct RankedDoc {
     pub url: String,
     pub title: String,
     pub description: String,
-    pub hits: i32,
+    pub hits: Option<i32>,
     pub online: bool,
+}
+
+impl From<Document> for RankedDoc {
+    fn from(doc: Document) -> Self {
+        Self {
+            doc: doc.name.clone(),
+            url: if doc.doctype == DocType::Online {
+                doc.name
+            } else {
+                format!(
+                    "https://{}.{}/{}",
+                    std::env::var("S3_BUCKET_ID")
+                        .expect("S3_BUCKET_ID must be set!"),
+                    std::env::var("S3_ENDPOINT")
+                        .expect("S3_ENDPOINT must be set!"),
+                    doc.name
+                )
+            },
+            title: doc.title,
+            description: doc.description,
+            hits: None,
+            online: doc.doctype == DocType::Online,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -397,10 +421,14 @@ pub fn search_query(
 #[get("/docs")]
 pub fn list_docs(
     state: &State<ServerState>,
-) -> ApiResponse<Json<Vec<Document>>> {
+    _auth: UserSession<'_>,
+) -> ApiResponse<Json<Vec<RankedDoc>>> {
     info!("Listing documents");
     let conn = &mut get_connector!(state);
-    json_val_or_error!(db::list_documents(conn))
+    json_val_or_error!(db::list_documents(conn).map(|docs| docs
+        .iter()
+        .map(|doc| doc.clone().into())
+        .collect::<Vec<RankedDoc>>()))
 }
 
 /// List keywords associated with a document
