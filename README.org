@@ -129,7 +129,7 @@ More details soon.
 See the [[file:TODOs.org][TODOs]] file.
 
 * License
-This repository is licensed under the GPL-3.0 license. You can find
+This repository is licensed under the AGPL-3.0 license. You can find
 the full text in the file [[file:LICENSE][LICENSE]].
 
 The file [[file:input/stopwords.txt][stopwords.txt]] is the result of merging the French, English,
