@@ -38,14 +38,14 @@ pub async fn upload_file(
 ) -> ApiResponse<()> {
     state
         .s3_bucket
-        .put_object(format!("/{}", filename), file)
+        .put_object(format!("/{filename}"), file)
         .await
         .map(|_| info!("Uploaded file!"))
         .map_err(|e| {
-            info!("Failed to upload file: {}", e);
+            info!("Failed to upload file: {e}");
             Custom(
                 Status::InternalServerError,
-                format!("Failed to upload file: {}", e),
+                format!("Failed to upload file: {e}"),
             )
         })
 }
@@ -65,23 +65,20 @@ pub async fn delete_file(
 ) -> ApiResponse<()> {
     state
         .s3_bucket
-        .delete_object(format!("/{}", filename))
+        .delete_object(format!("/{filename}"))
         .await
         .map(|_| {
             info!(
-                "Removed remote object {} from S3 bucket {}",
-                state.s3_bucket.name(),
-                filename
+                "Removed remote object {} from S3 bucket {filename}",
+                state.s3_bucket.name()
             );
         })
         .map_err(|e| {
             Custom(
                 Status::InternalServerError,
                 format!(
-                    "Failed to remove remote object {} from S3 bucket {}: {}",
-                    state.s3_bucket.name(),
-                    filename,
-                    e
+                    "Failed to remove remote object {} from S3 bucket {filename}: {e}",
+                    state.s3_bucket.name()
                 ),
             )
         })

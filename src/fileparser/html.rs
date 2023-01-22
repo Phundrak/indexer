@@ -17,8 +17,7 @@ macro_rules! make_selector {
             Ok(val) => val,
             Err(e) => {
                 return Err(HtmlParsingError::Other(format!(
-                    "Error creating selector: {:?}",
-                    e
+                    "Error creating selector: {e:?}"
                 )));
             }
         }
@@ -93,13 +92,12 @@ fn get_simple_tag<'r>(
     document: &'r Html,
     tag: &str,
 ) -> Result<ElementRef<'r>, HtmlParsingError> {
-    info!("== Retrieving HTML tag {}", tag);
+    info!("== Retrieving HTML tag {tag}");
     let selector = make_selector!(tag);
     document.select(&selector).next().map_or_else(
         || {
             Err(HtmlParsingError::ElementNotFound(format!(
-                "Could not find tag {}",
-                tag
+                "Could not find tag {tag}"
             )))
         },
         Ok,
@@ -122,8 +120,7 @@ pub fn parse(doc: &[u8]) -> ParsingResult {
         Ok(v) => v,
         Err(e) => {
             return Err(FileParsingError(format!(
-                "Could not convert input data to string: {}",
-                e
+                "Could not convert input data to string: {e}"
             )))
         }
     };
@@ -132,6 +129,6 @@ pub fn parse(doc: &[u8]) -> ParsingResult {
     let keywords = get_keywords(&html).map_err(FileParsingError::new)?;
     let body = get_body(&html).map_err(FileParsingError::new)?;
     let subject = get_description(&html).ok();
-    info!("====== Subject of file: {:?}", subject);
+    info!("====== Subject of file: {subject:?}");
     Ok((title, keywords, body, subject))
 }

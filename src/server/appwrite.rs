@@ -77,10 +77,8 @@ impl<'r> FromRequest<'r> for UserSession<'r> {
             state: &ServerState,
         ) -> Result<bool> {
             let client = reqwest::Client::new();
-            let url = format!(
-                "{}/users/{}/sessions",
-                state.appwrite_endpoint, user_id
-            );
+            let url =
+                format!("{}/users/{user_id}/sessions", state.appwrite_endpoint);
             let response = client
                 .get(url.clone())
                 .header("X-Appwrite-Key", state.appwrite_key.clone())
@@ -122,7 +120,7 @@ impl<'r> FromRequest<'r> for UserSession<'r> {
                         ))
                     }
                     Err(e) => {
-                        info!("Failed to verify user session: {}", e);
+                        info!("Failed to verify user session: {e}");
                         Outcome::Failure((
                             Status::BadRequest,
                             UserSessionError::Invalid,

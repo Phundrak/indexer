@@ -18,8 +18,8 @@ use crate::spelling::Dictionary;
 
 use self::appwrite::UserSession;
 
-pub mod s3;
 mod appwrite;
+pub mod s3;
 
 extern crate s3 as s3rust;
 
@@ -45,7 +45,7 @@ pub struct RankedDoc {
     pub title: String,
     pub description: String,
     pub hits: i32,
-    pub online: bool
+    pub online: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -121,7 +121,7 @@ async fn fetch_content(url: &String) -> ApiResponse<Vec<u8>> {
             Ok(val) => Ok(val.into()),
             Err(e) => Err(Custom(
                 Status::NotAcceptable,
-                format!("Cannot retrieve bytes from requested document; {}", e),
+                format!("Cannot retrieve bytes from requested document; {e}"),
             )),
         },
         Err(e) => Err(Custom(Status::InternalServerError, e.to_string())),
@@ -139,10 +139,10 @@ fn index_file(
     let stop_words = &state.stopwords;
     let glaff = &state.glaff;
     let content = get_content(file, stop_words, glaff)
-        .map_err(|e| Custom(Status::NotAcceptable, format!("{:?}", e)))?;
+        .map_err(|e| Custom(Status::NotAcceptable, format!("{e:?}")))?;
     debug!("{:?}", content);
     let conn = &mut state.pool.get().map_err(|e| {
-        api_error!(format!("Failed to connect to the database: {}", e))
+        api_error!(format!("Failed to connect to the database: {e}"))
     })?;
     info!("== Inserting {} in database", &identifier);
 
@@ -155,10 +155,10 @@ fn index_file(
     db::add_document(conn, &doc, &content).map_err(|e| {
         Custom(
             Status::InternalServerError,
-            format!("Failed to insert URL {} as a document: {}", identifier, e),
+            format!("Failed to insert URL {identifier} as a document: {e}"),
         )
     })?;
-    info!("Indexed {}", identifier);
+    info!("Indexed {identifier}");
     Ok(())
 }
 
@@ -213,25 +213,24 @@ pub async fn index_upload(
     use sha256::digest;
     let file = file_to_vec(file).await?;
     let id = digest(&file as &[u8]);
-    let filename = format!("{}-{}", id, filename);
+    let filename = format!("{id}-{filename}");
 
-    info!("Uploading file {}", filename);
+    info!("Uploading file {filename}");
     s3::upload_file(state, filename.clone(), file.as_slice()).await?;
 
-    info!("Indexing {}", filename);
+    info!("Indexing {filename}");
     match index_file(state, &file, &filename, DocType::Offline) {
         Ok(_) => Ok(()),
         Err(error_index) => {
             info!(
-                "Could not index file: {:?}. Deleting {} from s3 storage",
-                error_index, filename
+                "Could not index file: {error_index:?}. Deleting {filename} from s3 storage",
             );
             s3::delete_file(state, filename)
                 .await
                 .map_err(|error_delete| {
                     Custom(
                         Status::InternalServerError,
-                        format!("{:?}\tAND\t{}", error_index, error_delete.1),
+                        format!("{error_index:?}\tAND\t{}", error_delete.1),
                     )
                 })
         }
@@ -274,16 +273,19 @@ pub async fn delete_document(
     state: &State<ServerState>,
     _auth: UserSession<'_>,
 ) -> ApiResponse<()> {
-    info!("Deleting document \"{}\"", id);
+    info!("Deleting document \"{id}\"");
     let conn = &mut get_connector!(state);
     if let Some(filename) = db::get_s3_filename(conn, id) {
-        s3::delete_file(state, filename).map_err(|e| {
-            Custom(Status::InternalServerError, format!("Failed to delete remote file in S3 bucket: {e:?}"))
-        }).await?;
+        s3::delete_file(state, filename).await.map_err(|e| {
+            Custom(
+                Status::InternalServerError,
+                format!("Failed to delete remote file in S3 bucket: {e:?}"),
+            )
+        })?;
     }
     db::delete_document(conn, id)
         .map(|_| {
-            info!("Deleted document \"{}\"", id);
+            info!("Deleted document \"{id}\"");
         })
         .map_err(|e| api_error!(e.to_string()))
 }
@@ -350,7 +352,7 @@ pub fn search_query(
 ) -> ApiResponse<Json<QueryResult>> {
     use crate::spelling::correct;
     // Filter out empty queries
-    info!("Query \"{}\"", query);
+    info!("Query \"{query}\"");
     if query.is_empty() {
         return Ok(Json(QueryResult::default()));
     }
@@ -365,7 +367,7 @@ pub fn search_query(
         .collect::<Vec<String>>();
 
     // Spellcheck query
-    debug!("Normalized query_vec: {:?}", query_vec);
+    debug!("Normalized query_vec: {query_vec:?}");
     let spelling_suggestion = query_vec
         .iter()
         .map(|s| {
@@ -377,7 +379,7 @@ pub fn search_query(
         .collect::<Vec<String>>();
 
     // Execute the query
-    debug!("Suggested query: {:?}", spelling_suggestion);
+    debug!("Suggested query: {spelling_suggestion:?}");
     search_document_by_keyword(
         conn,
         &query_vec,
@@ -411,7 +413,7 @@ pub fn document_list_keywords(
     doc: &str,
     state: &State<ServerState>,
 ) -> ApiResponse<Json<Vec<RankedKeyword>>> {
-    info!("Getting document \"{}\"", doc);
+    info!("Getting document \"{doc}\"");
     let conn = &mut get_connector!(state);
     json_val_or_error!(db::doc_list_keywords(conn, doc))
 }

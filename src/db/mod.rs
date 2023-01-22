@@ -42,10 +42,7 @@ pub fn run_migrations(
                     .map_err(|e| {
                         Error::DatabaseError(
                             DatabaseErrorKind::Unknown,
-                            Box::new(format!(
-                                "Error running migrations: {}",
-                                e
-                            )),
+                            Box::new(format!("Error running migrations: {e}")),
                         )
                     })
             } else {
@@ -54,7 +51,7 @@ pub fn run_migrations(
         }
         Err(e) => Err(Error::DatabaseError(
             DatabaseErrorKind::Unknown,
-            Box::new(format!("Error: {}", e)),
+            Box::new(format!("Error: {e}")),
         )),
     }
 }
@@ -177,7 +174,7 @@ pub fn keywords_search(
                 item.1.as_ref().map(|doc| (doc.clone(), item.0.occurrences))
             })
             .collect::<Vec<(Document, i32)>>();
-        debug!("Documents for query {:?}: {:?}", words, list);
+        debug!("Documents for query {words:?}: {list:?}");
         for item in list {
             docs.entry(item.0)
                 .and_modify(|occ| *occ += item.1)

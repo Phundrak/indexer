@@ -7,8 +7,11 @@ pub mod pdf;
 pub struct FileParsingError(String);
 
 impl FileParsingError {
-    pub fn new<E>(error: E) -> Self where E: Debug {
-        Self(format!("{:?}", error))
+    pub fn new<E>(error: E) -> Self
+    where
+        E: Debug,
+    {
+        Self(format!("{error:?}"))
     }
 }
 
@@ -44,10 +47,9 @@ pub fn get_content(
         Some(mime) => match mime.mime_type() {
             "application/pdf" => pdf::parse(doc),
             "text/html" => html::parse(doc),
-            mime => Err(FileParsingError(format!(
-                "Mime type {} not supported",
-                mime
-            ))),
+            mime => {
+                Err(FileParsingError(format!("Mime type {mime} not supported")))
+            }
         },
     };
     let content = match content {
@@ -61,6 +63,8 @@ pub fn get_content(
         title: content.0,
         keywords: content.1,
         content: keywords,
-        description: content.3.unwrap_or_else(|| content.2[..120].replace('\n', " ")),
+        description: content
+            .3
+            .unwrap_or_else(|| content.2[..120].replace('\n', " ")),
     })
 }

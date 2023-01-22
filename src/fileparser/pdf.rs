@@ -20,7 +20,7 @@ fn get_keywords(doc: &Document) -> Vec<String> {
     if let Some(pdf_keywords) = doc.keywords() {
         keywords = crate::kwparser::split_keywords(&pdf_keywords);
     }
-    debug!("====== PDF: Keywords: {:?}", keywords);
+    debug!("====== PDF: Keywords: {keywords:?}");
     keywords
 }
 
@@ -58,7 +58,7 @@ fn get_subject(doc: &Document) -> Option<String> {
 pub fn parse(doc: &[u8]) -> ParsingResult {
     info!("== PDF: Parsing document");
     let doc = poppler::Document::from_data(doc, None).map_err(|e| {
-        FileParsingError::new(format!("Failed to parse PDF: {:?}", e))
+        FileParsingError::new(format!("Failed to parse PDF: {e:?}"))
     })?;
     let title = get_title(&doc).map_err(FileParsingError::new)?;
     let keywords = get_keywords(&doc);
