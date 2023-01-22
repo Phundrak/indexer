@@ -193,7 +193,8 @@ pub fn keywords_search(
     Ok(docs
         .iter()
         .map(|k| RankedDoc {
-            doc: if k.0.doctype == DocType::Online {
+            doc: k.0.name.clone(),
+            url: if k.0.doctype == DocType::Online {
                 k.0.name.clone()
             } else {
                 format!(
@@ -208,7 +209,7 @@ pub fn keywords_search(
             title: k.0.title.clone(),
             description: k.0.description.clone(),
             hits: k.1.to_owned(),
-            online: k.0.doctype == DocType::Online
+            online: k.0.doctype == DocType::Online,
         })
         .collect::<Vec<RankedDoc>>())
 }

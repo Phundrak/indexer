@@ -41,6 +41,7 @@ pub struct ServerState {
 #[serde(crate = "rocket::serde")]
 pub struct RankedDoc {
     pub doc: String,
+    pub url: String,
     pub title: String,
     pub description: String,
     pub hits: i32,
