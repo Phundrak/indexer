@@ -274,7 +274,7 @@ pub fn get_document(conn: &mut PgConnection, id: &str) -> Option<Document> {
 /// filename.
 pub fn get_s3_filename(conn: &mut PgConnection, id: &str) -> Option<String> {
     if let Some(document) = get_document(conn, id) {
-        if document.doctype == DocType::Online {
+        if document.doctype == DocType::Offline {
             Some(document.name)
         } else {
             None
